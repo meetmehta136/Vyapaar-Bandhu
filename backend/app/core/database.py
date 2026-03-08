@@ -1,9 +1,17 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import os
+from dotenv import load_dotenv
 
-DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5433/vyapaar_bandhu"
+load_dotenv()
 
-engine = create_engine(DATABASE_URL)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://vyapaar_bandhu_db_user:bgcHI8sWwK301ov5V9vD277zcPpwaJKs@dpg-d6mq127tskes73e2m230-a/vyapaar_bandhu_db"
+)
+
+# Render PostgreSQL requires this
+engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
 SessionLocal = sessionmaker(bind=engine)
 
 def get_db():
