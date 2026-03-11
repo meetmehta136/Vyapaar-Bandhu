@@ -72,7 +72,7 @@ uvicorn app.main:app --reload
 
 ## 💰 Business Model
 | Plan | Target |
-|---|---|---|
+|---|---|
 | Consumer | Individual SMEs |
 | CA Partner | CA firms (40+ clients each) |
 
@@ -83,3 +83,4 @@ uvicorn app.main:app --reload
 - HuggingFace: [meet136](https://huggingface.co/meet136)
 
 - Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier)
+
