@@ -71,16 +71,15 @@ uvicorn app.main:app --reload
 `users` · `invoices` · `gst_ledger` · `filing_history` · `alerts` · `ca_partners`
 
 ## 💰 Business Model
-| Plan | Price | Target |
+| Plan | Target |
 |---|---|---|
-| Consumer | ₹299/month | Individual SMEs |
-| CA Partner | ₹999/month | CA firms (40+ clients each) |
+| Consumer | Individual SMEs |
+| CA Partner | CA firms (40+ clients each) |
 
-## 🏆 Built For
-OceanLab X CHARUSAT Hacks 2026 · April 3–5
-Meet Mehta (Dhruv) · CHARUSAT University · 8 weeks solo
+
 
 ## 📬 Contact
 - GitHub: [@meetmehta136](https://github.com/meetmehta136)
 - HuggingFace: [meet136](https://huggingface.co/meet136)
+
 - Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier)
