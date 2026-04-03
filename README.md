@@ -1,8 +1,8 @@
 # VyapaarBandhu 🤝
 > AI-Powered GST Compliance Assistant for Indian Small Businesses
 
-[![Live API](https://img.shields.io/badge/API-Live-success)](https://vyapaar-bandhu.onrender.com/docs)
-[![Dashboard](https://img.shields.io/badge/Dashboard-Live-blue)](https://vyapaarbandhu-ca-elite.vercel.app)
+[![Live API](https://img.shields.io/badge/API-Live-success)](https://vyapaar-bandhu-h53q.onrender.com/docs)
+[![Dashboard](https://img.shields.io/badge/Dashboard-Live-blue)](https://vyapaar-bandhu.vercel.app)
 [![HuggingFace](https://img.shields.io/badge/Model-HuggingFace-yellow)](https://huggingface.co/meet136/indicbert-gst-classifier)
 [![Built Solo](https://img.shields.io/badge/Built-Solo%208%20Weeks-orange)]()
 
@@ -21,6 +21,25 @@ WhatsApp → Twilio → FastAPI Backend → PostgreSQL
               Compliance Engine (Pure Python)
                          ↓
               CA Dashboard (React + Vercel)
+```
+
+## 📁 Repository Structure
+```
+Vyapaar-Bandhu/
+├── backend/                  # FastAPI backend (deployed on Render)
+│   ├── app/
+│   │   ├── main.py           # App entry point + APScheduler
+│   │   ├── routes/           # whatsapp, dashboard, auth, compliance
+│   │   ├── services/         # OCR, classification, invoice, GSTIN validator
+│   │   └── models/           # SQLAlchemy models
+│   └── requirements.txt
+├── vyapaarbandhu-ca-elite/   # React frontend (deployed on Vercel)
+│   ├── src/
+│   │   ├── pages/            # Dashboard, Clients, Invoices, Admin
+│   │   ├── components/       # UI components, charts, sidebar
+│   │   └── lib/              # API client
+│   └── package.json
+└── frontend/                 # Legacy frontend folder
 ```
 
 ## ✨ Features
@@ -53,22 +72,33 @@ WhatsApp → Twilio → FastAPI Backend → PostgreSQL
 - **Infra:** Render, Vercel, Twilio WhatsApp API
 
 ## 🚀 Live Demo
-- API Docs: https://vyapaar-bandhu.onrender.com/docs
-- CA Dashboard: https://vyapaarbandhu-ca-elite.vercel.app
+- API Docs: https://vyapaar-bandhu-h53q.onrender.com/docs
+- CA Dashboard: https://vyapaar-bandhu.vercel.app
 - ML Model: https://huggingface.co/meet136/indicbert-gst-classifier
 
 ## 📦 Run Locally
+
+**Backend:**
 ```bash
-git clone https://github.com/meetmehta136/vyapaar-bandhu
+git clone https://github.com/meetmehta136/Vyapaar-Bandhu
 cd backend
 pip install -r requirements.txt
 cp .env.example .env  # add your API keys
+docker run --name vyapaar-postgres -e POSTGRES_PASSWORD=postgres -p 5433:5432 -d postgres
 uvicorn app.main:app --reload
+```
+
+**Frontend:**
+```bash
+cd vyapaarbandhu-ca-elite
+npm install
+echo "VITE_API_URL=https://vyapaar-bandhu-h53q.onrender.com" > .env
+npm run dev
 ```
 
 ## 🗄️ Database Schema
 8 ACID-compliant PostgreSQL tables:
-`users` · `invoices` · `gst_ledger` · `filing_history` · `alerts` · `ca_partners`
+`users` · `invoices` · `gst_ledger` · `filing_history` · `alerts` · `ca_partners` · `transactions` · `gstr2b_cache`
 
 ## 💰 Business Model
 | Plan | Target |
@@ -76,11 +106,7 @@ uvicorn app.main:app --reload
 | Consumer | Individual SMEs |
 | CA Partner | CA firms (40+ clients each) |
 
-
-
 ## 📬 Contact
 - GitHub: [@meetmehta136](https://github.com/meetmehta136)
 - HuggingFace: [meet136](https://huggingface.co/meet136)
-
 - Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier)
-
