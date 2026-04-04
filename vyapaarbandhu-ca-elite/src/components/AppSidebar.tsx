@@ -14,9 +14,9 @@ const navItems = [
 ];
 
 const planColors: Record<string, string> = {
-  pro:     'bg-primary/20 text-primary-val border border-primary/30',
-  starter: 'bg-accent/20 text-accent-val border border-accent/30',
-  free:    'bg-muted text-muted-foreground border border-border',
+  pro:     'bg-blue-100 text-blue-800 border border-blue-200',
+  starter: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+  free:    'bg-gray-100 text-gray-700 border border-gray-200',
 };
 
 const AppSidebar = () => {
@@ -36,11 +36,10 @@ const AppSidebar = () => {
   const planLabel = plan.toUpperCase();
 
   return (
-    <aside className="w-[240px] h-screen flex flex-col flex-shrink-0 sticky top-0"
-      style={{ background: 'hsl(0 0% 3%)', borderRight: '1px solid hsl(0 0% 9%)' }}>
+    <aside className="w-[240px] h-screen flex flex-col flex-shrink-0 sticky top-0 bg-[#1A3C6E] border-r border-[#2a4f8a]">
 
       {/* Logo */}
-      <div className="px-5 py-4 border-b" style={{ borderColor: 'hsl(0 0% 9%)' }}>
+      <div className="px-5 py-4 border-b border-[#2a4f8a]">
         <div className="flex items-center gap-3">
           <img
             src="/VBLogo.png"
@@ -49,8 +48,8 @@ const AppSidebar = () => {
             style={{ background: 'white', padding: '2px' }}
           />
           <div>
-            <div className="font-bold text-foreground text-sm font-display leading-tight">VyapaarBandhu</div>
-            <div className="text-[10px] text-muted-foreground tracking-wider">CA PORTAL</div>
+            <div className="font-bold text-white text-sm font-display leading-tight">VyapaarBandhu</div>
+            <div className="text-[10px] text-slate-400 tracking-wider">CA PORTAL</div>
           </div>
         </div>
       </div>
@@ -67,14 +66,14 @@ const AppSidebar = () => {
               key={item.path}
               onClick={() => navigate(item.path)}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-150 group relative',
+                'w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150 group relative',
                 isActive
-                  ? 'bg-primary/12 text-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5 font-medium'
+                  ? 'bg-[#2563EB] text-white font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10 font-medium'
               )}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-primary" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r-full bg-white" />
               )}
               <span className="text-lg leading-none">{item.emoji}</span>
               <span className="font-display text-[14px]">{item.label}</span>
@@ -82,8 +81,8 @@ const AppSidebar = () => {
                 <span className={cn(
                   'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider font-display',
                   item.badge === 'AI'
-                    ? 'bg-primary/20 text-primary-val'
-                    : 'bg-accent/20 text-accent-val'
+                    ? 'bg-blue-400/20 text-blue-200'
+                    : 'bg-emerald-400/20 text-emerald-200'
                 )}>
                   {item.badge}
                 </span>
@@ -94,17 +93,17 @@ const AppSidebar = () => {
       </nav>
 
       {/* Divider */}
-      <div className="mx-4 border-t" style={{ borderColor: 'hsl(0 0% 9%)' }} />
+      <div className="mx-4 border-t border-[#2a4f8a]" />
 
       {/* Profile */}
       <div className="p-4">
         <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold font-display flex-shrink-0 text-primary-val"
-            style={{ background: 'hsl(239 84% 67% / 0.15)', border: '1px solid hsl(239 84% 67% / 0.25)' }}>
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold font-display flex-shrink-0 text-white"
+            style={{ background: 'rgba(255, 255, 255, 0.2)', border: '1px solid rgba(255, 255, 255, 0.3)' }}>
             {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-foreground truncate font-display leading-tight">
+            <div className="text-[13px] font-semibold text-white truncate font-display leading-tight">
               {displayName || 'CA Portal'}
             </div>
             <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md font-display', planColors[plan])}>
@@ -114,7 +113,7 @@ const AppSidebar = () => {
         </div>
         <button
           onClick={logout}
-          className="w-full text-[11px] text-muted-foreground hover:text-destructive-val transition-colors duration-150 text-left font-medium py-1.5 px-2 rounded-lg hover:bg-destructive/8"
+          className="w-full text-[11px] text-slate-300 hover:text-red-300 transition-colors duration-150 text-left font-medium py-1.5 px-2 rounded-lg hover:bg-red-500/15"
         >
           Sign out →
         </button>
