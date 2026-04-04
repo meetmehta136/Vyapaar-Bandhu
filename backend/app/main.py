@@ -1,3 +1,11 @@
+
+@app.get('/admin/migrate')
+def run_migration():
+    from app.core.database import engine
+    from app.models.base import Base
+    Base.metadata.create_all(bind=engine)
+    return {'status': 'Tables updated OK'}
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.models.base import Base
