@@ -19,7 +19,7 @@ const SettingsPage = () => {
 
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold text-foreground mb-8">⚙️ Settings</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-8">⚙️ Settings</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* CA Profile */}

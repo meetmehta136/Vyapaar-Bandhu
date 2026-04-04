@@ -55,30 +55,30 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl mx-auto mb-4">
+          <div className="w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
             VB
           </div>
-          <h1 className="text-2xl font-bold text-foreground">VyapaarBandhu</h1>
-          <p className="text-sm text-muted-foreground mt-1">CA Portal — GST Compliance Platform</p>
+          <h1 className="text-2xl font-bold text-gray-900">VyapaarBandhu</h1>
+          <p className="text-sm text-gray-600 mt-1">CA Portal - GST Compliance Platform</p>
         </div>
 
         {/* Card */}
-        <div className="card-surface p-6">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
 
           {/* Tab toggle */}
-          <div className="flex gap-1 mb-6 p-1 rounded-lg bg-muted">
+          <div className="flex gap-1 mb-6 p-1 rounded-lg bg-gray-100">
             <button
               onClick={() => setMode('login')}
               className={cn(
                 'flex-1 py-2 rounded-md text-sm font-medium transition-all duration-200',
                 mode === 'login'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                  : 'text-gray-600 hover:text-gray-900'
               )}
             >
               Login
@@ -88,8 +88,8 @@ const LoginPage = () => {
               className={cn(
                 'flex-1 py-2 rounded-md text-sm font-medium transition-all duration-200',
                 mode === 'signup'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                  : 'text-gray-600 hover:text-gray-900'
               )}
             >
               Create Account
@@ -102,45 +102,45 @@ const LoginPage = () => {
             {mode === 'signup' && (
               <>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Full Name *</label>
+                  <label className="text-xs text-gray-600 mb-1 block">Full Name *</label>
                   <Input
                     placeholder="CA Rajesh Sharma"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="bg-muted border-border text-foreground rounded-lg"
+                    className="bg-white border-gray-200 text-gray-900 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Phone (optional)</label>
+                  <label className="text-xs text-gray-600 mb-1 block">Phone (optional)</label>
                   <Input
                     placeholder="+91 9876543210"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    className="bg-muted border-border text-foreground rounded-lg"
+                    className="bg-white border-gray-200 text-gray-900 rounded-lg"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Email *</label>
+              <label className="text-xs text-gray-600 mb-1 block">Email *</label>
               <Input
                 type="email"
                 placeholder="ca@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="bg-muted border-border text-foreground rounded-lg"
+                className="bg-white border-gray-200 text-gray-900 rounded-lg"
               />
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Password *</label>
+              <label className="text-xs text-gray-600 mb-1 block">Password *</label>
               <Input
                 type="password"
-                placeholder={mode === 'signup' ? 'Min 6 characters' : '••••••••'}
+                placeholder={mode === 'signup' ? 'Min 6 characters' : '•••••••••'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="bg-muted border-border text-foreground rounded-lg"
+                className="bg-white border-gray-200 text-gray-900 rounded-lg"
               />
             </div>
           </div>
@@ -159,20 +159,20 @@ const LoginPage = () => {
           </Button>
 
           {/* Toggle hint */}
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          <p className="text-center text-xs text-gray-600 mt-4">
             {mode === 'login'
-              ? <>New CA? <button onClick={() => setMode('signup')} className="text-primary-val hover:underline">Create an account</button></>
-              : <>Already registered? <button onClick={() => setMode('login')} className="text-primary-val hover:underline">Login here</button></>
+              ? <>New CA? <button onClick={() => setMode('signup')} className="text-blue-600 hover:underline font-medium">Create an account</button></>
+              : <>Already registered? <button onClick={() => setMode('login')} className="text-blue-600 hover:underline font-medium">Login here</button></>
             }
           </p>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 space-y-1">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-600">
             🤝 Serving 8 crore Indian SMEs
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-600">
             Built for OceanLab X CHARUSAT Hacks 2026
           </p>
         </div>

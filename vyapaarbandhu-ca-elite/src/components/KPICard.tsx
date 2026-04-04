@@ -15,17 +15,17 @@ interface KPICardProps {
 }
 
 const accentMap = {
-  primary:     { border: 'border-t-primary/60',     glow: 'hover:shadow-primary/10',     text: 'gradient-text-primary'  },
-  success:     { border: 'border-t-success/60',     glow: 'hover:shadow-success/10',     text: 'gradient-text-accent'   },
-  warning:     { border: 'border-t-warning/60',     glow: 'hover:shadow-warning/10',     text: 'gradient-text-warning'  },
-  destructive: { border: 'border-t-destructive/60', glow: 'hover:shadow-destructive/10', text: 'gradient-text-primary'  },
+  primary:     { border: 'border-l-4 border-l-blue-600',     glow: 'hover:shadow-md',     text: 'gradient-text-primary'  },
+  success:     { border: 'border-l-4 border-l-emerald-600',  glow: 'hover:shadow-md',     text: 'gradient-text-accent'   },
+  warning:     { border: 'border-l-4 border-l-amber-600',    glow: 'hover:shadow-md',     text: 'gradient-text-warning'  },
+  destructive: { border: 'border-l-4 border-l-red-600',      glow: 'hover:shadow-md',     text: 'gradient-text-primary'  },
 };
 
 const subtitleColors = {
-  success:     'text-success-val',
-  warning:     'text-warning-val',
-  destructive: 'text-destructive-val',
-  muted:       'text-muted-foreground',
+  success:     'text-emerald-600',
+  warning:     'text-amber-600',
+  destructive: 'text-red-600',
+  muted:       'text-gray-600',
 };
 
 const KPICard = ({
@@ -59,7 +59,7 @@ const KPICard = ({
 
   if (loading) {
     return (
-      <div className="card-surface p-5 border-t-2 border-t-border">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 border-l-4 border-l-gray-300">
         <div className="flex items-center justify-between mb-4">
           <div className="skeleton w-8 h-8 rounded-lg" />
           <div className="skeleton w-20 h-3 rounded" />
@@ -73,8 +73,8 @@ const KPICard = ({
   return (
     <div
       className={cn(
-        'card-surface p-5 border-t-2 transition-all duration-300 cursor-default group',
-        'hover:shadow-lg hover:-translate-y-0.5',
+        'bg-white rounded-lg border border-gray-200 shadow-sm p-5 transition-all duration-300 cursor-default group',
+        'hover:shadow-md hover:-translate-y-1',
         accent.border, accent.glow,
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
       )}
@@ -82,12 +82,12 @@ const KPICard = ({
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-xl">{icon}</span>
-        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest font-display">
+        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest font-display">
           {label}
         </span>
       </div>
 
-      <div className={cn('text-4xl font-bold mb-1.5 font-display', accent.text)}>
+      <div className={cn('text-4xl font-bold mb-1.5 font-display text-gray-900', accent.text)}>
         {numericValue != null
           ? <>{prefix}{displayValue.toLocaleString('en-IN')}</>
           : value}
