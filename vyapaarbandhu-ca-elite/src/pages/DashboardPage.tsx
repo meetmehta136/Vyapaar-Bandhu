@@ -109,7 +109,7 @@ const DashboardPage = () => {
 
   /* fetch clients */
   useEffect(() => {
-    getClients().then(c => setClients(c || []));
+    getClients().then(c => setClients(Array.isArray(c) ? c : (c as any)?.clients ?? []));
   }, []);
 
   /* ── GSTR-3B download (JWT included) ── */
@@ -544,3 +544,4 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
+
