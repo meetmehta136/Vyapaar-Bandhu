@@ -1,31 +1,16 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import KPICard from '@/components/KPICard';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+} from 'recharts';
 import { cn } from '@/lib/utils';
 import { useDashboardStats, useInvoices } from '@/hooks/useAPI';
 import { getClients } from '@/lib/api';
 
-const statusDot: Record<string, string> = { success: 'bg-success', warning: 'bg-warning', danger: 'bg-destructive' };
-const riskColors: Record<string, string> = { high: 'text-destructive-val', medium: 'text-warning-val', low: 'text-success-val' };
-const riskBg: Record<string, string> = { high: 'bg-destructive/20', medium: 'bg-warning/20', low: 'bg-success/20' };
-const categoryColors: Record<string, string> = {
-  'Electronics':    'bg-primary/20 text-primary-val',
-  'Office':         'bg-accent/20 text-accent-val',
-  'Food':           'bg-warning/20 text-warning-val',
-  'Pharma':         'bg-success/20 text-success-val',
-  'Vehicle':        'bg-destructive/20 text-destructive-val',
-  'Clothing':       'bg-destructive/20 text-destructive-val',
-  'Travel':         'bg-primary/20 text-primary-val',
-  'General':        'bg-muted text-muted-foreground',
-  'Other':          'bg-muted text-muted-foreground',
-};
-const statusBadge: Record<string, string> = {
-  confirmed: 'bg-primary/20 text-primary-val',
-  pending:   'bg-warning/20 text-warning-val',
-  rejected:  'bg-destructive/20 text-destructive-val',
-};
-
+/* ─── helpers ─────────────────────────────────────────────── */
 const getGreeting = () => {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -33,69 +18,142 @@ const getGreeting = () => {
   return 'Good evening';
 };
 
-const getFilingPeriod = () => {
-  const now = new Date();
-  return now.toLocaleString('en-IN', { month: 'long', year: 'numeric' }) + ' Filing Period';
+const getFilingPeriod = () =>
+  new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' }) +
+  ' · Filing Period';
+
+const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'https://vyapaar-bandhu-h53q.onrender.com';
+
+const categoryColors: Record<string, string> = {
+  Electronics: 'bg-primary/15 text-primary-val',
+  Office:      'bg-accent/15 text-accent-val',
+  Food:        'bg-warning/15 text-warning-val',
+  Pharma:      'bg-success/15 text-success-val',
+  Vehicle:     'bg-destructive/15 text-destructive-val',
+  Clothing:    'bg-destructive/15 text-destructive-val',
+  Travel:      'bg-primary/15 text-primary-val',
+  General:     'bg-muted text-muted-foreground',
+  Other:       'bg-muted text-muted-foreground',
 };
 
+const statusBadge: Record<string, string> = {
+  confirmed: 'bg-success/15 text-success-val',
+  pending:   'bg-warning/15 text-warning-val',
+  rejected:  'bg-destructive/15 text-destructive-val',
+};
+
+const statusDot: Record<string, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger:  'bg-destructive',
+};
+
+const riskColors: Record<string, string> = {
+  high:   'text-destructive-val',
+  medium: 'text-warning-val',
+  low:    'text-success-val',
+};
+
+const riskBg: Record<string, string> = {
+  high:   'bg-destructive/15',
+  medium: 'bg-warning/15',
+  low:    'bg-success/15',
+};
+
+/* ─── skeleton row ─────────────────────────────────────────── */
+const SkeletonRow = () => (
+  <tr className="border-b border-border/40">
+    {[1, 2, 3, 4, 5, 6].map(i => (
+      <td key={i} className="py-3 px-3">
+        <div className="skeleton h-3 rounded" style={{ width: `${50 + i * 8}%` }} />
+      </td>
+    ))}
+  </tr>
+);
+
+const SkeletonBar = ({ w = '100%' }: { w?: string }) => (
+  <div className="flex items-center justify-between py-2.5 border-b border-border/40">
+    <div className="flex items-center gap-3 flex-1">
+      <div className="skeleton w-2.5 h-2.5 rounded-full flex-shrink-0" />
+      <div className="skeleton h-3 rounded flex-1" style={{ maxWidth: w }} />
+    </div>
+    <div className="skeleton h-3 w-12 rounded ml-4" />
+  </div>
+);
+
+/* ─── custom tooltip ───────────────────────────────────────── */
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border rounded-xl px-3 py-2 text-xs shadow-xl">
+      <div className="text-muted-foreground mb-1">{label}</div>
+      <div className="font-bold text-foreground font-display">
+        ₹{Number(payload[0].value).toLocaleString('en-IN')}
+      </div>
+    </div>
+  );
+};
+
+/* ─── main component ───────────────────────────────────────── */
 const DashboardPage = () => {
   const { data: stats, loading: statsLoading } = useDashboardStats();
   const { data: invoicesData, loading: invoicesLoading } = useInvoices();
-  const [clients, setClients] = useState<any[]>([]);
+  const { caProfile, token } = useAuth();
+  const [clients, setClients]     = useState<any[]>([]);
   const [gstr3bLoading, setGstr3bLoading] = useState(false);
+  const [gstr3bError,   setGstr3bError]   = useState('');
 
+  const caFirstName = (caProfile?.name || 'CA')
+    .replace(/^CA\s+/i, '')
+    .split(' ')[0];
+
+  /* fetch clients */
+  useEffect(() => {
+    getClients().then(c => setClients(c || []));
+  }, []);
+
+  /* ── GSTR-3B download (JWT included) ── */
   const downloadGSTR3B = async () => {
     setGstr3bLoading(true);
+    setGstr3bError('');
     try {
-      const period = new Date().toISOString().slice(0, 7); // YYYY-MM
-      const base   = (import.meta as any).env?.VITE_API_URL || 'https://vyapaar-bandhu-h53q.onrender.com';
-      const res    = await fetch(`${base}/compliance/gstr3b-json/${period}`);
-      const json   = await res.json();
-
-      // Download as .json file
+      const period = new Date().toISOString().slice(0, 7);
+      const res = await fetch(`${BASE_URL}/compliance/gstr3b-json/${period}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = await res.json();
       const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `GSTR3B_${period}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert('Download failed. Check your connection.');
+      const a    = Object.assign(document.createElement('a'), { href: url, download: `GSTR3B_${period}.json` });
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch {
+      setGstr3bError('Download failed. Try again.');
     } finally {
       setGstr3bLoading(false);
     }
   };
 
-  useEffect(() => {
-    getClients().then(c => setClients(c || []));
-  }, []);
-
+  /* ── derived data ── */
   const invoices      = invoicesData || [];
-  const recentInvoices = invoices.slice(0, 5);
+  const recentInvoices = invoices.slice(0, 6);
 
-  // WhatsApp Activity — derived from real invoices
   const whatsappActivity = invoices.slice(0, 6).map((inv: any) => ({
-    client: inv.clientName || inv.clientId || 'Unknown',
-    action:
-      inv.status === 'confirmed' ? 'Invoice confirmed via WhatsApp' :
-      inv.status === 'pending'   ? 'Invoice uploaded — awaiting review' :
-      'Invoice rejected',
+    client: inv.clientName || 'Unknown',
+    action: inv.status === 'confirmed' ? 'Invoice confirmed' :
+            inv.status === 'pending'   ? 'Awaiting review'  : 'Invoice rejected',
     amount: `₹${(inv.total || 0).toLocaleString('en-IN')}`,
     time:   (inv.date || '').slice(0, 10),
     status: inv.status === 'confirmed' ? 'success' : inv.status === 'pending' ? 'warning' : 'danger',
   }));
 
-  // AI Deadline Risk — derived from real clients
   const deadlinePredictions = clients.map((c: any) => ({
     client:      c.name,
     probability: c.riskScore,
     risk:        c.riskScore < 40 ? 'high' : c.riskScore < 70 ? 'medium' : 'low',
   }));
 
-  // ITC Trend — grouped by month from real invoices
   const monthMap: Record<string, number> = {};
   invoices.forEach((inv: any) => {
     const month = (inv.date || '').slice(0, 7);
@@ -106,127 +164,267 @@ const DashboardPage = () => {
     .slice(-6)
     .map(([month, itc]) => ({ month: month.slice(5), itc: Math.round(itc as number) }));
 
-  // Client Risk Distribution — from real clients
   const compliant = clients.filter((c: any) => c.complianceStatus === 'compliant').length;
   const attention = clients.filter((c: any) => c.complianceStatus === 'attention').length;
   const atRisk    = clients.filter((c: any) => c.complianceStatus === 'at-risk').length;
   const clientRiskData = [
-    { name: 'Compliant', value: compliant, color: 'hsl(160,84%,39%)' },
-    { name: 'Attention', value: attention, color: 'hsl(38,92%,50%)' },
-    { name: 'At Risk',   value: atRisk,    color: 'hsl(0,84%,60%)' },
+    { name: 'Compliant', value: compliant, color: 'hsl(160,84%,42%)' },
+    { name: 'Attention', value: attention, color: 'hsl(38,95%,54%)'  },
+    { name: 'At Risk',   value: atRisk,    color: 'hsl(350,84%,60%)' },
   ].filter(d => d.value > 0);
 
+  /* ── AI classification ── */
+  const catMap: Record<string, { count: number; itc: number }> = {};
+  invoices.forEach((inv: any) => {
+    const cat = inv.aiCategory || 'General';
+    if (!catMap[cat]) catMap[cat] = { count: 0, itc: 0 };
+    catMap[cat].count += 1;
+    catMap[cat].itc   += inv.itc || 0;
+  });
+  const catEntries = Object.entries(catMap).sort((a, b) => b[1].itc - a[1].itc);
+  const avgConf = invoices.length > 0
+    ? Math.round(invoices.reduce((s: number, i: any) => s + (i.aiConfidence || 0), 0) / invoices.length * 100)
+    : 0;
+
+  /* ─────────────────────────────────── RENDER ───── */
   return (
     <AppLayout>
-      <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+
+      {/* ── Hero header ── */}
+      <div className="mb-8 flex items-start justify-between flex-wrap gap-4 animate-slide-up">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{getGreeting()}, CA 👋</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {getFilingPeriod()} · {statsLoading ? 'Loading...' : '● Live Data'}
+          <p className="text-xs text-muted-foreground font-medium tracking-widest uppercase mb-1">
+            {getFilingPeriod()}
           </p>
+          <h1 className="text-3xl font-bold text-foreground font-display">
+            {getGreeting()},{' '}
+            <span className="gradient-text-primary">{caFirstName}</span> 👋
+          </h1>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="live-dot w-2 h-2 rounded-full bg-success inline-block" />
+            <span className="text-xs text-success-val font-medium">Live Data</span>
+            {invoices.length > 0 && (
+              <span className="text-xs text-muted-foreground">· {invoices.length} invoices synced</span>
+            )}
+          </div>
         </div>
-        <button
-          onClick={downloadGSTR3B}
-          disabled={gstr3bLoading}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/20 text-primary-val border border-primary/30 hover:bg-primary/30 transition-colors text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {gstr3bLoading ? (
-            <>
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              Generating...
-            </>
-          ) : (
-            <>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Download GSTR-3B JSON
-            </>
-          )}
-        </button>
+
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={downloadGSTR3B}
+            disabled={gstr3bLoading}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold font-display transition-all duration-200
+              bg-primary/10 text-primary-val border border-primary/25 hover:bg-primary/20 hover:border-primary/40
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {gstr3bLoading ? (
+              <>
+                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                GSTR-3B JSON
+              </>
+            )}
+          </button>
+          {gstr3bError && <p className="text-[11px] text-destructive-val">{gstr3bError}</p>}
+        </div>
       </div>
 
+      {/* ── KPI cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KPICard icon="💰" label="Total ITC Saved"      value="" numericValue={stats ? stats.total_itc       : 0} prefix="₹" subtitle={statsLoading ? 'Loading...' : 'This month'}                        subtitleColor="success"     delay={0}   />
-        <KPICard icon="📄" label="Invoices Processed"   value="" numericValue={stats ? stats.total_invoices  : 0}            subtitle={stats ? `${stats.pending_invoices} pending review` : 'Loading...'} subtitleColor="warning"     delay={100} />
-        <KPICard icon="👥" label="Total Clients"        value="" numericValue={stats ? stats.total_clients   : 0}            subtitle="Registered users"                                                    subtitleColor="success"     delay={200} />
-        <KPICard icon="⚠️" label="Pending Invoices"     value="" numericValue={stats ? stats.pending_invoices : 0}           subtitle="Need CA review"                                                      subtitleColor="destructive" delay={300} glowColor="glow-destructive" />
+        <KPICard
+          icon="💰" label="Total ITC Saved"
+          numericValue={stats?.total_itc ?? 0} prefix="₹"
+          subtitle="Auto-computed this month"
+          subtitleColor="success" accentColor="success"
+          delay={0} loading={statsLoading}
+        />
+        <KPICard
+          icon="📄" label="Invoices Processed"
+          numericValue={stats?.total_invoices ?? 0}
+          subtitle={stats ? `${stats.pending_invoices} pending review` : '—'}
+          subtitleColor="warning" accentColor="primary"
+          delay={80} loading={statsLoading}
+        />
+        <KPICard
+          icon="👥" label="Total Clients"
+          numericValue={stats?.total_clients ?? 0}
+          subtitle="Active registrations"
+          subtitleColor="muted" accentColor="primary"
+          delay={160} loading={statsLoading}
+        />
+        <KPICard
+          icon="⚠️" label="Pending Review"
+          numericValue={stats?.pending_invoices ?? 0}
+          subtitle="Needs CA action"
+          subtitleColor="destructive" accentColor="destructive"
+          delay={240} loading={statsLoading}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+      {/* ── AI Classification (MOAT — show it first) ── */}
+      <div className="card-surface p-5 mb-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="text-sm font-bold text-foreground font-display">AI Classification Engine</h3>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary-val font-display tracking-widest">
+                IndicBERT
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Every invoice auto-classified for ITC eligibility
+            </p>
+          </div>
+          {invoices.length > 0 && (
+            <div className="flex gap-3">
+              <div className="text-center px-3 py-1.5 rounded-xl bg-muted/60">
+                <div className="text-base font-bold text-foreground font-display">{avgConf}%</div>
+                <div className="text-[10px] text-muted-foreground">Avg confidence</div>
+              </div>
+              <div className="text-center px-3 py-1.5 rounded-xl bg-muted/60">
+                <div className="text-base font-bold text-foreground font-display">{catEntries.length}</div>
+                <div className="text-[10px] text-muted-foreground">Categories</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {catEntries.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">
+            No invoices yet — send one on WhatsApp to activate AI classification.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {catEntries.map(([cat, data]) => {
+              const blocked = ['Food & Beverages', 'Food (Blocked)', 'Personal Vehicle', 'Blocked'].includes(cat);
+              return (
+                <div key={cat}
+                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/60 hover:border-border transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn(
+                      'shrink-0 w-1.5 h-1.5 rounded-full',
+                      blocked ? 'bg-destructive' : 'bg-success'
+                    )} />
+                    <span className={cn(
+                      'text-xs font-medium px-2 py-0.5 rounded-lg truncate font-display',
+                      blocked ? 'bg-destructive/15 text-destructive-val' : categoryColors[cat] || 'bg-muted text-muted-foreground'
+                    )}>
+                      {cat}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{data.count}×</span>
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    <div className={cn('text-xs font-bold font-display', blocked ? 'text-destructive-val line-through' : 'text-accent-val')}>
+                      ₹{data.itc.toLocaleString('en-IN')}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">{blocked ? 'blocked' : 'ITC'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Charts row ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+
         {/* ITC Trend */}
         <div className="card-surface p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">ITC Trend</h3>
+          <h3 className="text-sm font-bold text-foreground font-display mb-1">ITC Trend</h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Monthly input tax credit flow</p>
           {itcTrendData.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-16">No invoice data yet</p>
+            <div className="flex items-center justify-center py-16">
+              <p className="text-xs text-muted-foreground">No data yet</p>
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={itcTrendData}>
+            <ResponsiveContainer width="100%" height={210}>
+              <AreaChart data={itcTrendData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="itcGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="hsl(239,84%,67%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(239,84%,67%)" stopOpacity={0}   />
+                    <stop offset="0%"   stopColor="hsl(239,84%,67%)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(239,84%,67%)" stopOpacity={0}    />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="month" stroke="hsl(215,16%,47%)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(215,16%,47%)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '8px', fontSize: '12px', color: '#f8fafc' }}
-                  formatter={(v: number) => [`₹${v.toLocaleString('en-IN')}`, 'ITC']}
-                />
-                <Area type="monotone" dataKey="itc" stroke="hsl(239,84%,67%)" fill="url(#itcGrad)" strokeWidth={2} />
+                <XAxis dataKey="month" stroke="hsl(215,14%,38%)" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(215,14%,38%)" fontSize={10} tickLine={false} axisLine={false}
+                  tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="itc" stroke="hsl(239,84%,67%)"
+                  fill="url(#itcGrad)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        {/* Client Risk Distribution */}
+        {/* Client Risk */}
         <div className="card-surface p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Client Risk Distribution</h3>
+          <h3 className="text-sm font-bold text-foreground font-display mb-1">Client Risk Distribution</h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Compliance status across all clients</p>
           {clientRiskData.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-16">No client data yet</p>
+            <div className="flex items-center justify-center py-16">
+              <p className="text-xs text-muted-foreground">No clients yet</p>
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={clientRiskData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={4}>
-                  {clientRiskData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Legend formatter={(value) => <span style={{ color: '#f8fafc', fontSize: '12px' }}>{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height={175}>
+                <PieChart>
+                  <Pie data={clientRiskData} cx="50%" cy="50%"
+                    innerRadius={52} outerRadius={74} dataKey="value" paddingAngle={5} strokeWidth={0}>
+                    {clientRiskData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Legend
+                    formatter={v => <span style={{ color: 'hsl(210 40% 70%)', fontSize: '11px', fontFamily: 'Outfit' }}>{v}</span>}
+                    wrapperStyle={{ paddingTop: '8px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-center text-[11px] text-muted-foreground -mt-1">{clients.length} Total Clients</p>
+            </>
           )}
-          <div className="text-center -mt-2">
-            <span className="text-xs text-muted-foreground">{clients.length} Total Clients</span>
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+      {/* ── Activity + AI Risk ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+
         {/* WhatsApp Activity */}
         <div className="card-surface p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">📱 WhatsApp Activity Feed</h3>
+          <h3 className="text-sm font-bold text-foreground font-display mb-1">📱 WhatsApp Activity</h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Real-time invoice feed from clients</p>
           {whatsappActivity.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-8">No activity yet. Send an invoice on WhatsApp.</p>
+            <>
+              <SkeletonBar w="70%" />
+              <SkeletonBar w="55%" />
+              <SkeletonBar w="80%" />
+              <p className="text-[10px] text-muted-foreground text-center mt-3">Send an invoice on WhatsApp to populate</p>
+            </>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {whatsappActivity.map((item: any, i: number) => (
-                <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors duration-200">
-                  <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0', statusDot[item.status])} />
+                <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/25 hover:bg-muted/40 transition-colors">
+                  <div className={cn('w-2 h-2 rounded-full flex-shrink-0', statusDot[item.status])} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-medium text-foreground">{item.client}</span>
-                      {item.amount && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/20 text-accent-val">{item.amount}</span>
-                      )}
+                      <span className="text-xs font-semibold text-foreground font-display">{item.client}</span>
+                      <span className="text-[10px] font-mono-dm px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary-val">
+                        {item.amount}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.action}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.action}</p>
                   </div>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{item.time}</span>
+                  <span className="text-[10px] text-muted-foreground flex-shrink-0 font-mono-dm">{item.time}</span>
                 </div>
               ))}
             </div>
@@ -235,21 +433,28 @@ const DashboardPage = () => {
 
         {/* AI Deadline Risk */}
         <div className="card-surface p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-1">🧠 AI Deadline Risk</h3>
-          <p className="text-xs text-muted-foreground mb-4">Based on client risk scores</p>
+          <h3 className="text-sm font-bold text-foreground font-display mb-1">🧠 AI Deadline Risk</h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Predicted filing risk per client</p>
           {deadlinePredictions.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-8">No client data yet.</p>
+            <>
+              {[80, 60, 45].map((w, i) => (
+                <div key={i} className="mb-3">
+                  <div className="skeleton h-3 w-32 rounded mb-1.5" />
+                  <div className="skeleton h-2 rounded-full" style={{ width: `${w}%` }} />
+                </div>
+              ))}
+            </>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {deadlinePredictions.map((item: any, i: number) => (
                 <div key={i}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-foreground">{item.client}</span>
-                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', riskBg[item.risk], riskColors[item.risk])}>
-                      {item.probability}% — {item.risk === 'high' ? 'HIGH RISK' : item.risk === 'medium' ? 'MEDIUM' : 'ON TRACK'}
+                    <span className="text-xs font-semibold text-foreground font-display">{item.client}</span>
+                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-lg font-display', riskBg[item.risk], riskColors[item.risk])}>
+                      {item.probability}% · {item.risk === 'high' ? 'HIGH' : item.risk === 'medium' ? 'MEDIUM' : 'ON TRACK'}
                     </span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                     <div
                       className={cn('h-full rounded-full transition-all duration-1000',
                         item.risk === 'high' ? 'bg-destructive' : item.risk === 'medium' ? 'bg-warning' : 'bg-success')}
@@ -264,43 +469,65 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Recent Invoices */}
+      {/* ── Recent Invoices ── */}
       <div className="card-surface p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-foreground">Recent Invoices</h3>
-          {invoicesLoading  && <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>}
-          {!invoicesLoading && <span className="text-xs text-success-val">● Live — {invoices.length} invoices</span>}
+          <div>
+            <h3 className="text-sm font-bold text-foreground font-display">Recent Invoices</h3>
+            <p className="text-[11px] text-muted-foreground">Latest uploads from all clients</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={cn('w-1.5 h-1.5 rounded-full', invoicesLoading ? 'bg-warning animate-pulse' : 'bg-success')} />
+            <span className="text-[11px] text-muted-foreground font-medium">
+              {invoicesLoading ? 'Syncing...' : `${invoices.length} total`}
+            </span>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+
+        <div className="overflow-x-auto -mx-1">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium">Client</th>
-                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium">Invoice No</th>
-                <th className="text-right py-2.5 px-3 text-muted-foreground font-medium">Amount</th>
-                <th className="text-right py-2.5 px-3 text-muted-foreground font-medium">ITC</th>
-                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium">Category</th>
-                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium">Status</th>
+                {['Client', 'Invoice No', 'Amount', 'ITC', 'Category', 'Status'].map((h, i) => (
+                  <th key={h} className={cn(
+                    'py-2.5 px-3 text-[10px] text-muted-foreground font-semibold uppercase tracking-widest font-display whitespace-nowrap',
+                    i >= 2 && i <= 3 ? 'text-right' : 'text-left'
+                  )}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {recentInvoices.length === 0 && !invoicesLoading && (
-                <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No invoices yet. Send an invoice on WhatsApp to get started.</td></tr>
+              {invoicesLoading && [1,2,3,4].map(i => <SkeletonRow key={i} />)}
+              {!invoicesLoading && recentInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">
+                    No invoices yet — send one via WhatsApp to get started.
+                  </td>
+                </tr>
               )}
-              {recentInvoices.map((inv: any) => (
-                <tr key={inv.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors duration-200">
-                  <td className="py-2.5 px-3 text-foreground font-medium">{inv.clientName || 'Unknown'}</td>
-                  <td className="py-2.5 px-3 font-mono text-muted-foreground">{inv.invoiceNo || '—'}</td>
-                  <td className="py-2.5 px-3 text-right text-foreground">₹{(inv.total || 0).toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 px-3 text-right text-accent-val font-semibold">₹{(inv.itc || 0).toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 px-3">
-                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium',
+              {!invoicesLoading && recentInvoices.map((inv: any) => (
+                <tr key={inv.id}
+                  className="border-b border-border/40 hover:bg-muted/20 transition-colors duration-150 group">
+                  <td className="py-3 px-3 font-semibold text-foreground font-display whitespace-nowrap">
+                    {inv.clientName || 'Unknown'}
+                  </td>
+                  <td className="py-3 px-3 font-mono-dm text-muted-foreground text-[11px]">
+                    {inv.invoiceNo || '—'}
+                  </td>
+                  <td className="py-3 px-3 text-right font-semibold text-foreground font-display">
+                    ₹{(inv.total || 0).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3 px-3 text-right font-bold text-accent-val font-display">
+                    ₹{(inv.itc || 0).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className={cn('px-2 py-0.5 rounded-lg text-[10px] font-bold font-display whitespace-nowrap',
                       categoryColors[inv.aiCategory] || 'bg-muted text-muted-foreground')}>
                       {inv.aiCategory || 'General'}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium capitalize',
+                  <td className="py-3 px-3">
+                    <span className={cn('px-2 py-0.5 rounded-lg text-[10px] font-bold font-display capitalize whitespace-nowrap',
                       statusBadge[inv.status] || 'bg-muted text-muted-foreground')}>
                       {inv.status}
                     </span>
@@ -310,66 +537,6 @@ const DashboardPage = () => {
             </tbody>
           </table>
         </div>
-      </div>
-      {/* AI MOAT: Classification Breakdown */}
-      <div className="card-surface p-5 mb-8">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-sm font-semibold text-foreground">AI Classification Breakdown</h3>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary-val font-bold">LIVE</span>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">Every invoice auto-classified by your fine-tuned IndicBERT model</p>
-        {(() => {
-          const catMap: Record<string, { count: number; itc: number }> = {};
-          invoices.forEach((inv: any) => {
-            const cat = inv.aiCategory || 'General';
-            if (!catMap[cat]) catMap[cat] = { count: 0, itc: 0 };
-            catMap[cat].count += 1;
-            catMap[cat].itc   += inv.itc || 0;
-          });
-          const entries = Object.entries(catMap).sort((a, b) => b[1].itc - a[1].itc);
-          const avgConf = invoices.length > 0
-            ? Math.round(invoices.reduce((s: number, i: any) => s + (i.aiConfidence || 0), 0) / invoices.length * 100)
-            : 0;
-          if (entries.length === 0) return (
-            <p className="text-xs text-muted-foreground text-center py-4">No invoices yet.</p>
-          );
-          return (
-            <>
-              <div className="flex gap-3 mb-4 flex-wrap">
-                <div className="px-3 py-2 rounded-lg bg-muted text-xs">
-                  <span className="text-muted-foreground">Avg confidence: </span>
-                  <span className="font-semibold">{avgConf}%</span>
-                </div>
-                <div className="px-3 py-2 rounded-lg bg-muted text-xs">
-                  <span className="text-muted-foreground">Categories: </span>
-                  <span className="font-semibold">{entries.length}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {entries.map(([cat, data]) => {
-                  const blocked = ['Food & Beverages','Food (Blocked)','Personal Vehicle','Blocked'].includes(cat);
-                  return (
-                    <div key={cat} className="flex items-center justify-between py-2 border-b border-border/40 last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium',
-                          blocked ? 'bg-destructive/20 text-destructive-val' : categoryColors[cat] || 'bg-muted text-muted-foreground')}>
-                          {cat}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">{data.count} invoice{data.count !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className={cn('text-xs font-semibold', blocked ? 'text-destructive-val line-through' : 'text-accent-val')}>
-                          Rs.{data.itc.toLocaleString('en-IN')}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">{blocked ? 'blocked' : 'ITC'}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          );
-        })()}
       </div>
 
     </AppLayout>
