@@ -122,7 +122,8 @@ export async function getDashboardStats() {
 // ── Clients ───────────────────────────────────────────────────────────────────
 
 export async function getClients() {
-  return await fetchAPI('/api/clients');
+  const d = await fetchAPI('/api/clients');
+  return Array.isArray(d) ? d : d?.clients ?? d?.data ?? d?.items ?? [];
 }
 
 export async function getClientDetail(id: string) {
@@ -142,9 +143,9 @@ export async function sendWhatsAppReminder(clientId: string) {
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
 export async function getInvoices() {
-  return await fetchAPI('/api/invoices');
+  const d = await fetchAPI('/api/invoices');
+  return Array.isArray(d) ? d : d?.invoices ?? d?.data ?? d?.items ?? [];
 }
-
 export async function approveInvoice(id: string) {
   return await postAPI(`/api/invoices/${id}/approve`);
 }
@@ -219,3 +220,4 @@ export async function getDeadlines(period: string) {
 export async function checkITC(category: string) {
   return await fetchAPI(`/compliance/itc/${encodeURIComponent(category)}`);
 }
+
