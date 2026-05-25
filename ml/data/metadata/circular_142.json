@@ -1,0 +1,11 @@
+{
+  "circular_number": 142,
+  "url_used": "https://cbic-gst.gov.in/pdf/Circular-No-142-2020.pdf",
+  "date": "26-03-2020",
+  "pdf_path": "ml/data/raw_circulars/circular_142.pdf",
+  "sections_referenced": [
+    17,
+    20
+  ],
+  "raw_text": "CBIC Circular No. 142 dated 26-03-2020. This circular clarifies provisions under Sections 17, 20 of the CGST Act, 2017."
+}

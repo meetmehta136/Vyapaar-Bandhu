@@ -1,0 +1,12 @@
+{
+  "circular_number": 45,
+  "url_used": "https://cbic-gst.gov.in/pdf/Circular-No-45-2018.pdf",
+  "date": "06-06-2018",
+  "pdf_path": "ml/data/raw_circulars/circular_45.pdf",
+  "sections_referenced": [
+    7,
+    16,
+    17
+  ],
+  "raw_text": "CBIC Circular No. 45 dated 06-06-2018. This circular clarifies provisions under Sections 7, 16, 17 of the CGST Act, 2017."
+}

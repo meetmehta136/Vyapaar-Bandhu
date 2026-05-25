@@ -1,0 +1,11 @@
+{
+  "circular_number": 150,
+  "url_used": "https://cbic-gst.gov.in/pdf/Circular-No-150-2021.pdf",
+  "date": "06-01-2021",
+  "pdf_path": "ml/data/raw_circulars/circular_150.pdf",
+  "sections_referenced": [
+    16,
+    17
+  ],
+  "raw_text": "CBIC Circular No. 150 dated 06-01-2021. This circular clarifies provisions under Sections 16, 17 of the CGST Act, 2017."
+}

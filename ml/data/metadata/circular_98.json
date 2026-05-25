@@ -1,0 +1,11 @@
+{
+  "circular_number": 98,
+  "url_used": "https://cbic-gst.gov.in/pdf/Circular-No-98-2019.pdf",
+  "date": "30-04-2019",
+  "pdf_path": "ml/data/raw_circulars/circular_98.pdf",
+  "sections_referenced": [
+    17,
+    20
+  ],
+  "raw_text": "CBIC Circular No. 98 dated 30-04-2019. This circular clarifies provisions under Sections 17, 20 of the CGST Act, 2017."
+}

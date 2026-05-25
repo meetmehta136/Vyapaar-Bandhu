@@ -1,0 +1,8 @@
+{
+  "total": 7229,
+  "train": 5353,
+  "val": 1176,
+  "test": 700,
+  "per_class_test": 100,
+  "val_split": 0.18
+}
