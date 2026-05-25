@@ -1,21 +1,21 @@
 # GSTMind Build Progress
-Last session completed: 0
-Current session: 0 (just starting)
+Last session completed: 1
+Current session: 1
 
-## Session 0 — Security Fix + Progress Tracking
-**Status**: In progress
+## Session 1 — README Honesty Fix
+**Status**: Completed
 **Date**: 2026-05-25
 
 ### Key Actions
-- Added `backend/.env` to `.gitignore` (root already had `.env` but redundant explicit entry added)
-- Created `docs/PROGRESS.md` — single source of truth for continuation after session expiry
+- Added "Note on classifier metrics" below ML Stack table — warns that F1=1.00 is a synthetic data artifact
+- Added "Known Limitations" section (4 items: classifiers, CBIC scraper, eval set, Render 512MB)
+- Added meet136/muril-gst-classifier-v2 to ML Stack table
 
 ### Warnings / To-dos
-- `backend/.env` was committed in git history (commits `6146fa3`, `6020f4b`) containing live API keys (Twilio, Google Vision, Anthropic, OpenRouter, HuggingFace). **User must rotate these keys externally.** The `.gitignore` fix only prevents future commits.
-- Remove `backend/.env` from git tracking via `git rm --cached backend/.env` if it's still tracked (verify with `git ls-files backend/.env`).
+- None
 
 ### Next Session
-- Session 1: Fix README — acknowledge F1=1.00 data artifact, add Known Limitations section
+- Session 2: Compliance engine tests (pytest, 20+ tests, 60%+ coverage)
 
 ---
 
@@ -23,8 +23,9 @@ Current session: 0 (just starting)
 
 | Session | Status | Date | Key Outputs | Notes |
 |---------|--------|------|-------------|-------|
-| 0 | In progress | 2026-05-25 | .gitignore fix, docs/PROGRESS.md | Keys in git history — rotate! |
-| 1 | Pending | — | — | README fix |
+| 0 | Completed | 2026-05-25 | .gitignore fix, docs/PROGRESS.md | Keys in git history — rotate! |
+| 1 | Completed | 2026-05-25 | README — Known Limitations section | — |
+| 2 | Pending | — | — | Compliance engine tests |
 | 2 | Pending | — | — | Compliance engine tests |
 | 3 | Pending | — | — | CBIC data pipeline |
 | 4 | Pending | — | — | Legal chunker |
