@@ -70,6 +70,8 @@ def _auto_correct_gstin(raw: str) -> dict:
     if not confused_positions:
         return {"corrected": None, "corrections": []}
 
+    # Prioritize position 14 (checksum) — it's the most impactful to try
+    confused_positions.sort(key=lambda x: x[0] != 14)
     confused_positions = confused_positions[:8]
     positions = [p[0] for p in confused_positions]
     options = [p[1] for p in confused_positions]
