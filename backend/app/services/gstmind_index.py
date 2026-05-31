@@ -4,11 +4,6 @@ import json, os, logging, shutil
 from pathlib import Path
 from typing import Optional
 
-import chromadb
-from chromadb.config import Settings
-from chromadb.errors import NotFoundError
-from sentence_transformers import SentenceTransformer
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
@@ -36,14 +31,15 @@ class GSTMindIndex:
         self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
-        self._model: Optional[SentenceTransformer] = None
-        self._collection: Optional[chromadb.Collection] = None
-        self._client: Optional[chromadb.PersistentClient] = None
+        self._model = None
+        self._collection = None
+        self._client = None
 
     # ── Model ────────────────────────────────────────────────────────────────
 
     def _load_model(self):
         if self._model is None:
+            from sentence_transformers import SentenceTransformer
             log.info(f"Loading embedding model: {self.model_name}")
             self._model = SentenceTransformer(
                 self.model_name,
@@ -66,6 +62,8 @@ class GSTMindIndex:
     @property
     def client(self):
         if self._client is None:
+            import chromadb
+            from chromadb.config import Settings
             self._client = chromadb.PersistentClient(
                 path=str(self.db_path),
                 settings=Settings(anonymized_telemetry=False),
@@ -73,8 +71,9 @@ class GSTMindIndex:
         return self._client
 
     @property
-    def collection(self) -> chromadb.Collection:
+    def collection(self):
         if self._collection is None:
+            from chromadb.errors import NotFoundError
             name = "gstmind"
             try:
                 self._collection = self.client.get_collection(name)

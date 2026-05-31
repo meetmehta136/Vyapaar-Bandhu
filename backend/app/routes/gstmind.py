@@ -1,11 +1,9 @@
 """GSTMind RAG route — query the CGST Act + CBIC circular knowledge base."""
 import os, logging
 from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-
-from app.services.gstmind_index import GSTMindIndex
-from app.services.gstmind_responder import GSTMindResponder
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -15,20 +13,22 @@ router = APIRouter(prefix="/api/gstmind", tags=["gstmind"])
 DB_PATH = os.getenv("GSTMIND_DB_PATH", "data/chromadb")
 MODEL_NAME = os.getenv("GSTMIND_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
 
-_index: GSTMindIndex | None = None
-_responder: GSTMindResponder | None = None
+_index: Optional[object] = None
+_responder: Optional[object] = None
 
 
-def get_index() -> GSTMindIndex:
+def get_index():
     global _index
     if _index is None:
+        from app.services.gstmind_index import GSTMindIndex
         _index = GSTMindIndex(db_path=DB_PATH, model_name=MODEL_NAME)
     return _index
 
 
-def get_responder() -> GSTMindResponder:
+def get_responder():
     global _responder
     if _responder is None:
+        from app.services.gstmind_responder import GSTMindResponder
         _responder = GSTMindResponder()
     return _responder
 
