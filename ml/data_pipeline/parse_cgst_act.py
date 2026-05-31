@@ -1,4 +1,4 @@
-"""Parse CGST Act PDF — v2: handle multi-column government PDF layout."""
+"""Parse CGST Act PDF — v3: robust section boundary detection, no truncation."""
 import json, re, logging
 from pathlib import Path
 
@@ -11,19 +11,41 @@ ACT_PATH = Path("ml/data/raw_acts/cgst_act.pdf")
 OUT_DIR = Path("ml/data/parsed_acts")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Section header patterns for this specific PDF
-# The CGST Act sections are numbered 1 to 174
-# Headers look like: "Short title,\nextent and\ncommencement.\n\n1. (1) This Act..."
-# Or: "Definitions. 2. In this Act, unless..."
-SECTION_PATTERN = re.compile(
-    r"(?:^|\n{2,})\s*(\d+)\.\s*\n*\s*\(1\)\s+([A-Z][^.]*(?:\.\s*)?)",
-    re.MULTILINE
-)
-# Also catch sections where title comes before number
-ALT_SECTION_PATTERN = re.compile(
-    r"([A-Z][a-zA-Z\s,]+)\.\s*\n*\s*(\d+)\.\s*\n*\s*\(",
-    re.MULTILINE
-)
+CHAPTER_RANGES = [
+    (1, 1, "Preliminary"),
+    (2, 2, "Definitions"),
+    (3, 6, "Levy and Collection of Tax"),
+    (7, 11, "Time and Value of Supply"),
+    (12, 14, "Input Tax Credit"),
+    (15, 15, "Registration"),
+    (16, 22, "Returns"),
+    (23, 31, "Payment of Tax"),
+    (32, 38, "Assessment and Audit"),
+    (39, 48, "Appeals"),
+    (49, 57, "Offences and Penalties"),
+    (58, 68, "Miscellaneous"),
+]
+
+
+def infer_chapter(n):
+    for start, end, name in CHAPTER_RANGES:
+        if start <= n <= end:
+            return name
+    return "Other"
+
+
+def extract_title(body: str) -> str:
+    first = body.split("\n")[0].strip() if body else ""
+    m = re.match(r"^\(1\)\s+([A-Z][^(\n]+)", first)
+    if m:
+        return m.group(1).strip().rstrip(",")
+    m = re.match(r"^([A-Z][^(\n]+?)\s*\n", body)
+    if m:
+        return m.group(1).strip().rstrip(",")
+    m = re.match(r"^([A-Z][^(\n]+)", first)
+    if m:
+        return m.group(1).strip().rstrip(",")
+    return ""
 
 
 def parse_act():
@@ -42,85 +64,69 @@ def parse_act():
 
     log.info(f"Total extracted chars: {len(full_text)}")
 
-    # Try primary pattern: "N.\n\n(1) ..."
-    matches = list(SECTION_PATTERN.finditer(full_text))
-    log.info(f"Primary pattern found {len(matches)} matches")
+    # Strategy: find section numbers that appear after 2+ newlines or at start-of-text
+    # This avoids matching numbers inside running text
+    boundary_matches = list(re.finditer(
+        r"(?:^|\n{2,})\s*(\d{1,3})\.\s*\n*",
+        full_text
+    ))
+    log.info(f"Boundary pattern found {len(boundary_matches)} matches")
+
+    cands = []
+    for m in boundary_matches:
+        n = int(m.group(1))
+        if 1 <= n <= 174:
+            cands.append((n, m.start(), m.end()))
+
+    # Deduplicate: keep first occurrence of each section number
+    seen = set()
+    unique = []
+    for n, start, end in cands:
+        if n not in seen:
+            seen.add(n)
+            unique.append((n, start, end))
+
+    log.info(f"Unique sections: {len(unique)}")
+
+    if len(unique) < 30:
+        log.warning(f"Only {len(unique)} unique sections — trying broader pattern...")
+        # Broader: match \d+\. at line start
+        broad = list(re.finditer(r"(?:^|\n)\s*(\d{1,3})\.\s*(?:\(1\)|[A-Z])", full_text))
+        seen2 = set()
+        unique = []
+        for m in broad:
+            n = int(m.group(1))
+            if 1 <= n <= 174 and n not in seen2:
+                seen2.add(n)
+                unique.append((n, m.start(), m.end()))
+        log.info(f"Broad pattern found {len(unique)} unique sections")
 
     sections = []
-    if len(matches) >= 30:
-        log.info("Using primary pattern results...")
-        for m in matches:
-            snum = int(m.group(1))
-            title = m.group(2).strip()
-            sections.append({
-                "section_number": snum,
-                "section_title": title,
-                "full_text": "",
-                "char_count": 0,
-            })
-    else:
-        log.info("Primary pattern insufficient — trying simple number pattern...")
-        matches = list(re.finditer(r"(?:^|\n)\s*(\d{1,3})\.\s*\n", full_text))
-        log.info(f"Simple section number pattern found {len(matches)}")
+    for i, (snum, _start, end) in enumerate(unique):
+        nxt_start = unique[i + 1][1] if i + 1 < len(unique) else len(full_text)
+        body = full_text[end:nxt_start].strip()
 
-        for i, m in enumerate(matches):
-            snum = int(m.group(1))
-            if snum < 1 or snum > 174:
-                continue
-            start = m.end()
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(full_text)
-            body = full_text[start:end].strip()
-            first_line = body.split("\n")[0].strip() if body else ""
-            title_match = re.match(r"^(?:\(1\)\s+)?([A-Z][^.]+)", first_line)
-            title = title_match.group(1).strip() if title_match else f"Section {snum}"
+        title = extract_title(body)
+        if not title:
+            title = f"Section {snum}"
 
-            existing = next((s for s in sections if s["section_number"] == snum), None)
-            if existing:
-                if len(body) > len(existing["full_text"]):
-                    existing["full_text"] = body[:2000]
-                    existing["char_count"] = len(body)
-            else:
-                sections.append({
-                    "section_number": snum,
-                    "section_title": title,
-                    "full_text": body[:2000],
-                    "char_count": len(body),
-                })
+        sections.append({
+            "section_number": snum,
+            "section_title": title,
+            "chapter": infer_chapter(snum),
+            "full_text": body,
+            "char_count": len(body),
+        })
 
-    sections = sorted(sections, key=lambda x: x["section_number"])
-
-    CHAPTER_RANGES = [
-        (1, 1, "Preliminary"),
-        (2, 2, "Definitions"),
-        (7, 11, "Levy and Collection of Tax"),
-        (12, 14, "Time and Value of Supply"),
-        (15, 15, "Input Tax Credit"),
-        (16, 22, "Registration"),
-        (23, 31, "Returns"),
-        (32, 38, "Payment of Tax"),
-        (39, 48, "Assessment and Audit"),
-        (49, 57, "Appeals"),
-        (58, 68, "Offences and Penalties"),
-        (69, 79, "Miscellaneous"),
-    ]
-
-    def infer_chapter(n):
-        for start, end, name in CHAPTER_RANGES:
-            if start <= n <= end:
-                return name
-        return "Other"
-
-    for s in sections:
-        s["chapter"] = infer_chapter(s["section_number"])
+    log.info(f"Total sections: {len(sections)}")
 
     for s in sections:
         out_path = OUT_DIR / f"cgst_section_{s['section_number']}.json"
-        with open(out_path, "w") as f:
-            json.dump(s, f, indent=2)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(s, f, indent=2, ensure_ascii=False)
 
-    log.info(f"Parsed {len(sections)} sections")
-    if len(sections) < 80:
-        log.warning(f"Only {len(sections)} sections — expected 80+. The PDF text extraction may have limitations.")
+    char_counts = [s["char_count"] for s in sections]
+    log.info(f"Char counts — min: {min(char_counts)}, max: {max(char_counts)}, avg: {sum(char_counts)//len(char_counts)}")
     return len(sections)
 
 

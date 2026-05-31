@@ -1,174 +1,113 @@
+"""Invoice service — save, deduplicate, and update ITC."""
+import re
+from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.models.base import User, Invoice, GSTLedger
 from app.core.database import SessionLocal
-from datetime import datetime
+from loguru import logger
 
 
-def get_or_create_user(phone: str) -> User:
-    phone = phone.replace("whatsapp:+91", "").replace("whatsapp:+", "").replace("whatsapp:", "")[:15]
-    db: Session = SessionLocal()
+def save_invoice(phone: str, ocr_fields: dict) -> dict:
+    """Save or update an invoice from OCR fields. Returns invoice data."""
+    db = SessionLocal()
     try:
-        user = db.query(User).filter(User.phone == phone).first()
+        phone_clean = re.sub(r"\D", "", phone)[-10:]
+        if len(phone_clean) != 10:
+            return {"success": False, "error": "Invalid phone"}
+
+        user = db.query(User).filter(User.phone == phone_clean).first()
         if not user:
-            user = User(phone=phone)
+            user = User(phone=phone_clean)
             db.add(user)
             db.commit()
             db.refresh(user)
-            print(f"✅ New user created: {phone}")
-        return user
-    finally:
-        db.close()
+            logger.info(f"New user created: {phone_clean}")
 
+        def _v(key):
+            val = ocr_fields.get(key, {}).get("value")
+            try:
+                return float(val) if val else 0.0
+            except (ValueError, TypeError):
+                return 0.0
 
-def check_duplicate_invoice(phone: str, fields: dict) -> dict:
-    """
-    Check if this invoice already exists for this user.
-    Match on: invoice_no + seller_gstin (both must match).
-    Returns: {"is_duplicate": True/False, "existing_id": int, "existing_date": str}
-    """
-    phone = phone.replace("whatsapp:+91", "").replace("whatsapp:+", "").replace("whatsapp:", "")[:15]
-    invoice_no   = (fields.get("invoice_no",   {}).get("value") or "").strip()
-    seller_gstin = (fields.get("seller_gstin", {}).get("value") or "").strip()
+        invoice_no = ocr_fields.get("invoice_no", {}).get("value")
+        taxable_amt = _v("taxable_amount")
+        cgst = _v("cgst")
+        sgst = _v("sgst")
+        igst = _v("igst")
+        total_amount = _v("total_amount") or taxable_amt + cgst + sgst + igst
 
-    # Can't detect duplicate without at least invoice number
-    if not invoice_no:
-        return {"is_duplicate": False}
-
-    db: Session = SessionLocal()
-    try:
-        user = db.query(User).filter(User.phone == phone).first()
-        if not user:
-            return {"is_duplicate": False}
-
-        query = db.query(Invoice).filter(
-            Invoice.user_id    == user.id,
-            Invoice.invoice_no == invoice_no
-        )
-
-        # If GSTIN also available, match on both for stronger check
-        if seller_gstin:
-            query = query.filter(Invoice.seller_gstin == seller_gstin)
-
-        existing = query.first()
-
-        if existing:
-            existing_date = existing.date.strftime("%d-%m-%Y") if existing.date else "unknown date"
-            print(f"⚠️ Duplicate detected: Invoice #{invoice_no} already saved as ID={existing.id}")
-            return {
-                "is_duplicate": True,
-                "existing_id":   existing.id,
-                "existing_date": existing_date,
-                "existing_total": round((existing.cgst or 0) + (existing.sgst or 0) + (existing.igst or 0), 2)
-            }
-
-        return {"is_duplicate": False}
-
-    finally:
-        db.close()
-
-
-def save_invoice(phone: str, fields: dict) -> dict:
-    phone = phone.replace("whatsapp:+91", "").replace("whatsapp:+", "").replace("whatsapp:", "")[:15]
-    db: Session = SessionLocal()
-    try:
-        user = db.query(User).filter(User.phone == phone).first()
-        if not user:
-            user = User(phone=phone)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        date_val = None
-        raw_date = fields.get("invoice_date", {}).get("value")
-        if raw_date:
-            for fmt in ["%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"]:
+        date_str = ocr_fields.get("invoice_date", {}).get("value")
+        invoice_date = None
+        if date_str:
+            for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"):
                 try:
-                    date_val = datetime.strptime(raw_date, fmt)
+                    invoice_date = datetime.strptime(date_str, fmt)
                     break
-                except:
-                    pass
+                except ValueError:
+                    continue
+
+        if invoice_no:
+            existing = db.query(Invoice).filter(
+                Invoice.user_id == user.id,
+                Invoice.invoice_no == invoice_no,
+            ).first()
+            if existing:
+                logger.info(f"Duplicate detected: Invoice #{invoice_no} already saved as ID={existing.id}")
+                db.close()
+                return {
+                    "success": True,
+                    "invoice_id": existing.id,
+                    "duplicate": True,
+                    "message": "Invoice already exists"
+                }
 
         invoice = Invoice(
-            user_id      = user.id,
-            seller_gstin = (fields.get("seller_gstin", {}).get("value") or "")[:15] or None,
-            invoice_no   = (fields.get("invoice_no",   {}).get("value") or "")[:100] or None,
-            date         = date_val,
-            taxable_amt  = fields.get("taxable_amount", {}).get("value") or 0,
-            cgst         = fields.get("cgst", {}).get("value") or 0,
-            sgst         = fields.get("sgst", {}).get("value") or 0,
-            igst         = fields.get("igst", {}).get("value") or 0,
-            status       = "confirmed"
+            user_id=user.id,
+            seller_gstin=ocr_fields.get("seller_gstin", {}).get("value"),
+            invoice_no=invoice_no,
+            date=invoice_date,
+            taxable_amt=taxable_amt,
+            cgst=cgst,
+            sgst=sgst,
+            igst=igst,
+            status="extracted",
         )
         db.add(invoice)
         db.commit()
         db.refresh(invoice)
-        print(f"✅ Invoice saved: ID={invoice.id}")
+        logger.info(f"Invoice saved: ID={invoice.id}")
 
-        # Fix: inter-state (IGST only) vs intra-state (CGST + SGST)
-        igst = invoice.igst or 0
-        cgst = invoice.cgst or 0
-        sgst = invoice.sgst or 0
-        itc_amount = igst if igst > 0 else (cgst + sgst)
-
-        period = datetime.utcnow().strftime("%Y-%m")
+        # Update GSTLedger
+        period = invoice_date.strftime("%Y-%m") if invoice_date else datetime.now().strftime("%Y-%m")
         ledger = db.query(GSTLedger).filter(
             GSTLedger.user_id == user.id,
-            GSTLedger.period  == period
+            GSTLedger.period == period,
         ).first()
 
         if not ledger:
-            ledger = GSTLedger(
-                user_id         = user.id,
-                period          = period,
-                total_purchases = 0,
-                itc_available   = 0,
-                net_liability   = 0
-            )
+            ledger = GSTLedger(user_id=user.id, period=period)
             db.add(ledger)
 
-        ledger.total_purchases = (ledger.total_purchases or 0) + (invoice.taxable_amt or 0)
-        ledger.itc_available   = (ledger.itc_available   or 0) + itc_amount
+        itc_amount = cgst + sgst + igst
+        ledger.total_purchases = (ledger.total_purchases or 0) + taxable_amt
+        ledger.itc_available = (ledger.itc_available or 0) + itc_amount
+        ledger.net_liability = (ledger.net_liability or 0) - itc_amount
         db.commit()
 
-        print(f"✅ ITC updated: +Rs.{itc_amount} | Total ITC: Rs.{ledger.itc_available}")
+        logger.info(f"ITC updated: +Rs.{itc_amount} | Total ITC: Rs.{ledger.itc_available}")
 
+        db.close()
         return {
-            "success":    True,
+            "success": True,
             "invoice_id": invoice.id,
-            "itc_this":   round(itc_amount, 2),
-            "itc_total":  round(ledger.itc_available, 2),
-            "period":     period
+            "user_id": user.id,
+            "period": period,
+            "itc_updated": itc_amount,
         }
 
     except Exception as e:
-        print(f"❌ DB Error: {e}")
-        db.rollback()
+        logger.error(f"DB Error saving invoice: {e}")
+        db.close()
         return {"success": False, "error": str(e)}
-    finally:
-        db.close()
-
-
-def get_itc_balance(phone: str) -> dict:
-    db: Session = SessionLocal()
-    try:
-        user = db.query(User).filter(User.phone == phone).first()
-        if not user:
-            return {"itc_total": 0, "period": "", "invoice_count": 0}
-
-        period = datetime.utcnow().strftime("%Y-%m")
-        ledger = db.query(GSTLedger).filter(
-            GSTLedger.user_id == user.id,
-            GSTLedger.period  == period
-        ).first()
-
-        invoice_count = db.query(Invoice).filter(
-            Invoice.user_id == user.id
-        ).count()
-
-        return {
-            "itc_total":     round(ledger.itc_available if ledger else 0, 2),
-            "period":        period,
-            "invoice_count": invoice_count
-        }
-    finally:
-        db.close()

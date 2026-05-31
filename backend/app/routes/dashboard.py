@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from loguru import logger
 from app.core.database import get_db
-from app.models.base import Invoice, GSTLedger, User
+from app.models.base import Invoice, GSTLedger, User, CAPartner
+from app.core.auth_utils import get_current_ca
+from app.core.security import limiter
 from datetime import datetime
 from pydantic import BaseModel
 import io
@@ -26,7 +29,7 @@ class ClientCreate(BaseModel):
     state: str = ""
 
 @router.get("/dashboard/stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         period = datetime.now().strftime("%Y-%m")
         itc_row = db.query(func.sum(GSTLedger.itc_available)).filter(GSTLedger.period == period).scalar() or 0
@@ -44,14 +47,34 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.get("/clients")
-def get_clients(db: Session = Depends(get_db)):
+def get_clients(
+    current_user: CAPartner = Depends(get_current_ca),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    per_page: int = 50,
+):
     try:
         period = datetime.now().strftime("%Y-%m")
-        users = db.query(User).all()
+        total = db.query(func.count(User.id)).scalar() or 0
+        users = db.query(User).offset((page - 1) * per_page).limit(per_page).all()
+        user_ids = [u.id for u in users]
+
+        # Batch: one query for all ledgers
+        ledgers = db.query(GSTLedger).filter(
+            GSTLedger.user_id.in_(user_ids), GSTLedger.period == period
+        ).all()
+        ledger_map = {l.user_id: l for l in ledgers}
+
+        # Batch: one query for all invoice counts
+        invoice_counts = db.query(
+            Invoice.user_id, func.count(Invoice.id)
+        ).filter(Invoice.user_id.in_(user_ids)).group_by(Invoice.user_id).all()
+        count_map = {row[0]: row[1] for row in invoice_counts}
+
         result = []
         for user in users:
-            ledger = db.query(GSTLedger).filter(GSTLedger.user_id == user.id, GSTLedger.period == period).first()
-            invoice_count = db.query(func.count(Invoice.id)).filter(Invoice.user_id == user.id).scalar() or 0
+            ledger = ledger_map.get(user.id)
+            invoice_count = count_map.get(user.id, 0)
             itc = float(ledger.itc_available) if ledger else 0
             if itc > 1000:
                 status = "compliant"
@@ -71,12 +94,12 @@ def get_clients(db: Session = Depends(get_db)):
                 "complianceStatus": status,
                 "riskScore": min(risk_score, 100)
             })
-        return result
+        return {"data": result, "total": total, "page": page, "per_page": per_page}
     except Exception as e:
         return {"error": str(e)}
 
 @router.post("/clients")
-def create_client(client: ClientCreate, db: Session = Depends(get_db)):
+def create_client(client: ClientCreate, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         user = User(
             business_name=client.name,
@@ -99,14 +122,15 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
                 body=f"Namaste! {client.name} 🙏\n\nAapke CA ne aapko VyapaarBandhu se connect kiya hai.\n\nAb aap apni invoices ki photo yahan bhej sakte hain aur hum automatically ITC calculate karenge.\n\nShuru karne ke liye 'hello' likhiye ya invoice ki photo bhejiye!\n\nVyapaarBandhu 🤝"
             )
         except Exception as wa_err:
-            print(f"WhatsApp welcome skipped: {wa_err}")
+            logger.warning(f"WhatsApp welcome skipped for {user.phone}: {wa_err}")
 
         return {"success": True, "id": str(user.id)}
     except Exception as e:
         return {"error": str(e)}
 
 @router.post("/clients/{client_id}/remind")
-def send_reminder(client_id: int, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def send_reminder(request: Request, client_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.id == client_id).first()
         if not user:
@@ -124,7 +148,7 @@ def send_reminder(client_id: int, db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.get("/clients/{client_id}/gstr3b-json")
-def get_gstr3b_json(client_id: int, db: Session = Depends(get_db)):
+def get_gstr3b_json(client_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.id == client_id).first()
         if not user:
@@ -260,7 +284,7 @@ def get_gstr3b_json(client_id: int, db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.get("/clients/{client_id}/filing-pdf")
-def get_filing_pdf(client_id: int, db: Session = Depends(get_db)):
+def get_filing_pdf(client_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     if not REPORTLAB:
         return {"error": "reportlab not installed"}
     user = db.query(User).filter(User.id == client_id).first()
@@ -306,7 +330,7 @@ def get_filing_pdf(client_id: int, db: Session = Depends(get_db)):
         headers={"Content-Disposition": f"attachment; filename=filing_{client_id}_{datetime.now().strftime('%Y%m')}.pdf"})
 
 @router.get("/clients/{client_id}")
-def get_client_detail(client_id: int, db: Session = Depends(get_db)):
+def get_client_detail(client_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.id == client_id).first()
         if not user:
@@ -346,12 +370,26 @@ def get_client_detail(client_id: int, db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.get("/invoices")
-def get_invoices(db: Session = Depends(get_db)):
+def get_invoices(
+    current_user: CAPartner = Depends(get_current_ca),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    per_page: int = 50,
+):
     try:
-        invoices = db.query(Invoice).order_by(Invoice.id.desc()).all()
+        total = db.query(func.count(Invoice.id)).scalar() or 0
+        invoices = db.query(Invoice).order_by(Invoice.id.desc()).offset(
+            (page - 1) * per_page
+        ).limit(per_page).all()
+
+        # Batch: one query for all users
+        user_ids = list({inv.user_id for inv in invoices})
+        users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        user_map = {u.id: u for u in users}
+
         result = []
         for inv in invoices:
-            user = db.query(User).filter(User.id == inv.user_id).first()
+            user = user_map.get(inv.user_id)
             itc = float((inv.cgst or 0) + (inv.sgst or 0) + (inv.igst or 0))
             total = float((inv.taxable_amt or 0) + itc)
             result.append({
@@ -370,12 +408,12 @@ def get_invoices(db: Session = Depends(get_db)):
                 "status": inv.status or "confirmed",
                 "aiCategory": "General"
             })
-        return result
+        return {"data": result, "total": total, "page": page, "per_page": per_page}
     except Exception as e:
         return {"error": str(e)}
 
 @router.post("/invoices/{invoice_id}/approve")
-def approve_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def approve_invoice(invoice_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
         if not inv:
@@ -387,7 +425,7 @@ def approve_invoice(invoice_id: int, db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.post("/invoices/{invoice_id}/reject")
-def reject_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def reject_invoice(invoice_id: int, current_user: CAPartner = Depends(get_current_ca), db: Session = Depends(get_db)):
     try:
         inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
         if not inv:
@@ -399,13 +437,27 @@ def reject_invoice(invoice_id: int, db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @router.get("/alerts")
-def get_alerts(db: Session = Depends(get_db)):
+def get_alerts(
+    current_user: CAPartner = Depends(get_current_ca),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    per_page: int = 50,
+):
     try:
-        users = db.query(User).all()
-        alerts = []
+        total = db.query(func.count(User.id)).scalar() or 0
+        users = db.query(User).offset((page - 1) * per_page).limit(per_page).all()
+        user_ids = [u.id for u in users]
+
+        # Batch: one query for all invoice counts
+        invoice_counts = db.query(
+            Invoice.user_id, func.count(Invoice.id)
+        ).filter(Invoice.user_id.in_(user_ids)).group_by(Invoice.user_id).all()
+        count_map = {row[0]: row[1] for row in invoice_counts}
+
         period = datetime.now().strftime("%Y-%m")
+        alerts = []
         for user in users:
-            invoice_count = db.query(func.count(Invoice.id)).filter(Invoice.user_id == user.id).scalar() or 0
+            invoice_count = count_map.get(user.id, 0)
             if invoice_count == 0:
                 alerts.append({
                     "id": f"alert-{user.id}",
@@ -428,22 +480,37 @@ def get_alerts(db: Session = Depends(get_db)):
                     "daysRemaining": 16,
                     "resolved": False
                 })
-        return alerts
+        return {"data": alerts, "total": total, "page": page, "per_page": per_page}
     except Exception as e:
         return {"error": str(e)}
 
 @router.get("/admin/stats")
-def get_admin_stats(db: Session = Depends(get_db)):
+def get_admin_stats(
+    current_user: CAPartner = Depends(get_current_ca),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    per_page: int = 50,
+):
     try:
         total_users = db.query(func.count(User.id)).scalar() or 0
         total_invoices = db.query(func.count(Invoice.id)).scalar() or 0
         total_itc = db.query(func.sum(GSTLedger.itc_available)).scalar() or 0
         confirmed = db.query(func.count(Invoice.id)).filter(Invoice.status == "confirmed").scalar() or 0
         pending = db.query(func.count(Invoice.id)).filter(Invoice.status == "pending").scalar() or 0
-        users = db.query(User).order_by(User.id.desc()).all()
+        users = db.query(User).order_by(User.id.desc()).offset(
+            (page - 1) * per_page
+        ).limit(per_page).all()
+        user_ids = [u.id for u in users]
+
+        # Batch: one query for invoice counts
+        invoice_counts = db.query(
+            Invoice.user_id, func.count(Invoice.id)
+        ).filter(Invoice.user_id.in_(user_ids)).group_by(Invoice.user_id).all()
+        count_map = {row[0]: row[1] for row in invoice_counts}
+
         user_list = []
         for u in users:
-            inv_count = db.query(func.count(Invoice.id)).filter(Invoice.user_id == u.id).scalar() or 0
+            inv_count = count_map.get(u.id, 0)
             user_list.append({
                 "id": str(u.id),
                 "name": u.business_name or "Unknown",

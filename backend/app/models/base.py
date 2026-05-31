@@ -2,7 +2,7 @@ from sqlalchemy import (
     Column, Integer, String, Float,
     Boolean, DateTime, ForeignKey, Text
 )
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
@@ -17,6 +17,7 @@ class CAPartner(Base):
     email          = Column(String(200), unique=True, nullable=False)
     phone          = Column(String(15))
     password_hash  = Column(String(256), nullable=False)
+    refresh_token_hash = Column(String(256), nullable=True)
     plan           = Column(String(20), default="starter")
     white_label_name = Column(String(200))
     is_active      = Column(Boolean, default=True)

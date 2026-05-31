@@ -1,38 +1,30 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from loguru import logger
 from app.models.base import Base
 from app.core.database import engine
+from app.core.security import limiter, get_cors_origins, apply_security_middleware
+from app.core.logging_config import configure_logging
 from app.routes.gstin import router as gstin_router
 from app.routes.compliance import router as compliance_router
 from app.routes.whatsapp import router as whatsapp_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.auth import router as auth_router
+from app.routes.ocr import router as ocr_router
+from app.routes.upload import router as upload_router
+from app.routes.gstmind import router as gstmind_router
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import os
 
-app = FastAPI(
-    title="VyapaarBandhu",
-    description="AI GST Compliance Assistant for Indian Small Businesses",
-    version="0.1.0"
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(auth_router)
-app.include_router(gstin_router)
-app.include_router(compliance_router)
-app.include_router(whatsapp_router)
-app.include_router(dashboard_router)
-
 
 # ── APScheduler Deadline Alert Job ───────────────────────────────────────────
+
+scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
+
 
 def send_deadline_alerts():
     from app.core.database import SessionLocal
@@ -40,14 +32,14 @@ def send_deadline_alerts():
     from app.services.compliance_engine import get_filing_deadlines
     from twilio.rest import Client
 
-    print(f"⏰ Running deadline alert job — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    logger.info(f"Running deadline alert job — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
     TWILIO_SID   = os.getenv("TWILIO_ACCOUNT_SID")
     TWILIO_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-    TWILIO_FROM  = "whatsapp:+14155238886"
+    TWILIO_FROM  = os.getenv("TWILIO_FROM", "whatsapp:+14155238886")
 
     if not TWILIO_SID or not TWILIO_TOKEN:
-        print("❌ Twilio credentials not found — skipping alerts")
+        logger.warning("Twilio credentials not found — skipping alerts")
         return
 
     period         = datetime.utcnow().strftime("%Y-%m")
@@ -62,13 +54,13 @@ def send_deadline_alerts():
     should_alert_gstr3b = days_to_gstr3b in alert_days
 
     if not should_alert_gstr1 and not should_alert_gstr3b:
-        print(f"📅 No alerts today — GSTR-1: {days_to_gstr1}d, GSTR-3B: {days_to_gstr3b}d")
+        logger.info(f"No alerts today — GSTR-1: {days_to_gstr1}d, GSTR-3B: {days_to_gstr3b}d")
         return
 
     db = SessionLocal()
     try:
         users = db.query(User).filter(User.phone.isnot(None)).all()
-        print(f"📋 Sending alerts to {len(users)} users...")
+        logger.info(f"Sending alerts to {len(users)} users...")
         twilio_client = Client(TWILIO_SID, TWILIO_TOKEN)
         sent_count = 0
 
@@ -89,44 +81,43 @@ def send_deadline_alerts():
             messages = []
 
             if should_alert_gstr1:
-                urgency = "🚨 URGENT!" if days_to_gstr1 == 1 else "⚠️" if days_to_gstr1 == 3 else "📅"
+                urgency = "URGENT!" if days_to_gstr1 == 1 else "Reminder" if days_to_gstr1 == 3 else "Notice"
                 messages.append(
                     f"{urgency} GSTR-1 Filing Reminder\n\n"
                     f"Deadline: {gstr1_date}\n"
                     f"Sirf {days_to_gstr1} din bacha hai!\n\n"
-                    f"💰 Aapka ITC this month: Rs.{itc_balance:,.2f}\n\n"
+                    f"ITC this month: Rs.{itc_balance:,.2f}\n\n"
                     f"Apne CA se abhi contact karein.\n"
-                    f"VyapaarBandhu 🤝"
+                    f"VyapaarBandhu"
                 )
 
             if should_alert_gstr3b:
-                urgency = "🚨 URGENT!" if days_to_gstr3b == 1 else "⚠️" if days_to_gstr3b == 3 else "📅"
+                urgency = "URGENT!" if days_to_gstr3b == 1 else "Reminder" if days_to_gstr3b == 3 else "Notice"
                 messages.append(
                     f"{urgency} GSTR-3B Filing Reminder\n\n"
                     f"Deadline: {gstr3b_date}\n"
                     f"Sirf {days_to_gstr3b} din bacha hai!\n\n"
-                    f"💰 ITC Available: Rs.{itc_balance:,.2f}\n\n"
+                    f"ITC Available: Rs.{itc_balance:,.2f}\n\n"
                     f"{'Ab der mat karein! Penalty shuru hogi!' if days_to_gstr3b == 1 else 'Invoice upload karna baaki hai to abhi bhejiye!'}\n"
-                    f"VyapaarBandhu 🤝"
+                    f"VyapaarBandhu"
                 )
 
             for msg_body in messages:
                 try:
                     twilio_client.messages.create(from_=TWILIO_FROM, to=wa_to, body=msg_body)
                     sent_count += 1
-                    print(f"📤 Alert sent to {phone}")
+                    logger.info(f"Alert sent to {phone}")
                 except Exception as e:
-                    print(f"❌ Failed to send to {phone}: {e}")
+                    logger.error(f"Failed to send to {phone}: {e}")
 
-        print(f"✅ Deadline alerts done — {sent_count} messages sent")
+        logger.info(f"Deadline alerts done — {sent_count} messages sent")
 
     except Exception as e:
-        print(f"❌ Alert job error: {e}")
+        logger.error(f"Alert job error: {e}")
     finally:
         db.close()
 
 
-scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 scheduler.add_job(
     send_deadline_alerts,
     trigger="cron",
@@ -136,18 +127,54 @@ scheduler.add_job(
 )
 
 
-@app.on_event("startup")
-def startup():
+# ── Lifespan ─────────────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    configure_logging()
     Base.metadata.create_all(bind=engine)
-    print("✅ All tables created / verified")
+    logger.info("All tables created / verified")
     scheduler.start()
-    print("⏰ APScheduler started — 9:00 AM IST daily")
-
-
-@app.on_event("shutdown")
-def shutdown():
+    logger.info("APScheduler started — 9:00 AM IST daily")
+    yield
     scheduler.shutdown()
+    logger.info("APScheduler shut down")
 
+
+# ── App Factory ──────────────────────────────────────────────────────────────
+
+app = FastAPI(
+    title="VyapaarBandhu",
+    description="AI GST Compliance Assistant for Indian Small Businesses",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+cors_origins = get_cors_origins()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=cors_origins != ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+apply_security_middleware(app)
+
+app.include_router(auth_router)
+app.include_router(gstin_router)
+app.include_router(compliance_router)
+app.include_router(whatsapp_router)
+app.include_router(dashboard_router)
+app.include_router(ocr_router)
+app.include_router(upload_router)
+app.include_router(gstmind_router)
+
+
+# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health_check():
@@ -166,4 +193,4 @@ def health_check():
 def trigger_test_alerts():
     import threading
     threading.Thread(target=send_deadline_alerts, daemon=True).start()
-    return {"status": "triggered", "message": "Alert job running — check Render logs"}
+    return {"status": "triggered", "message": "Alert job running — check logs"}

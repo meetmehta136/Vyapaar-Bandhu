@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from typing import Optional
+from loguru import logger
 
 try:
     import pdfplumber
@@ -356,7 +357,7 @@ def parse_bank_statement(pdf_path: str) -> dict:
         all_tables = []
 
         with pdfplumber.open(pdf_path) as pdf:
-            print(f"📄 PDF pages: {len(pdf.pages)}")
+            logger.info(f"PDF pages: {len(pdf.pages)}")
             for page in pdf.pages:
                 text = page.extract_text() or ""
                 all_text += text + "\n"
@@ -372,7 +373,7 @@ def parse_bank_statement(pdf_path: str) -> dict:
             }
 
         bank = detect_bank(all_text)
-        print(f"🏦 Detected bank: {bank}")
+        logger.info(f"Detected bank: {bank}")
 
         parsers = {
             "HDFC":    parse_hdfc,
@@ -388,7 +389,7 @@ def parse_bank_statement(pdf_path: str) -> dict:
 
         # Fallback to generic if bank parser found nothing
         if not transactions and bank != "GENERIC":
-            print(f"⚠️ {bank} parser found nothing, trying generic...")
+            logger.warning(f"{bank} parser found nothing, trying generic...")
             transactions = parse_generic(all_text, all_tables)
 
         # Classify each transaction for GST relevance
@@ -401,9 +402,9 @@ def parse_bank_statement(pdf_path: str) -> dict:
         total_credit = sum(t["credit"] or 0 for t in transactions)
         itc_possible = [t for t in transactions if t.get("itc_possible")]
 
-        print(f"✅ Parsed {len(transactions)} transactions")
-        print(f"💰 Total debit: ₹{total_debit:,.2f} | credit: ₹{total_credit:,.2f}")
-        print(f"📋 ITC possible on {len(itc_possible)} transactions")
+        logger.info(f"Parsed {len(transactions)} transactions")
+        logger.info(f"Total debit: Rs.{total_debit:,.2f} | credit: Rs.{total_credit:,.2f}")
+        logger.info(f"ITC possible on {len(itc_possible)} transactions")
 
         return {
             "success": True,
@@ -422,7 +423,7 @@ def parse_bank_statement(pdf_path: str) -> dict:
         }
 
     except Exception as e:
-        print(f"❌ PDF parsing error: {e}")
+        logger.error(f"PDF parsing error: {e}")
         return {
             "success": False,
             "error": str(e),

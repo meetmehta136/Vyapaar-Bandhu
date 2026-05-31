@@ -7,3 +7,16 @@ backend/.env
 dist/
 build/
 .DS_Store
+backend/venv311/
+backend/test.db
+backend/local.db
+backend/.coverage
+backend/*.db
+ml/models/
+ml/data/processed/
+ml/evaluation/
+ml/notebooks/
+ml/scripts/
+data/
+*.pdf
+*.docx
