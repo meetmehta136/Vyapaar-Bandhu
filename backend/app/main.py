@@ -176,7 +176,7 @@ app.include_router(gstmind_router)
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     job = scheduler.get_job("deadline_alerts")
     next_run = str(job.next_run_time) if job else "unknown"

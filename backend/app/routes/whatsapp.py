@@ -1,5 +1,5 @@
 """WhatsApp webhook — handles inbound messages and confirms OCR fields."""
-from fastapi import APIRouter, Request, Form, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
@@ -12,18 +12,38 @@ import threading
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 
-async def verify_twilio_signature(request: Request):
-    """Validate X-Twilio-Signature header. Skips when TWILIO_AUTH_TOKEN is unset (dev mode)."""
+def get_twilio_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.headers.get("host", request.url.hostname)
+    path = request.url.path
+    query = request.url.query
+    url = f"{proto}://{host}{path}"
+    if query:
+        url += f"?{query}"
+    return url
+
+
+async def verify_twilio_signature(request: Request) -> dict:
+    """Validate X-Twilio-Signature header. Returns form params dict."""
     auth_token = os.getenv("TWILIO_AUTH_TOKEN", "")
+    url = get_twilio_url(request)
+    form_data = await request.form()
+    params = dict(form_data)
+
     if not auth_token or not auth_token.strip():
         logger.warning("TWILIO_AUTH_TOKEN not set — skipping signature verification (dev mode)")
-        return
+        return params
 
     validator = RequestValidator(auth_token)
     signature = request.headers.get("X-Twilio-Signature", "")
-    form = await request.form()
-    if not validator.validate(str(request.url), dict(form), signature):
+
+    logger.info(f"[Twilio] validating against URL: {url}")
+
+    if not validator.validate(url, params, signature):
+        logger.warning(f"Twilio signature validation failed for URL: {url}")
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+    return params
 
 PENDING_CONFIRMATIONS = {}
 
@@ -194,16 +214,17 @@ def process_summary(user_phone: str):
         db.close()
 
 
-@router.post("/webhook", dependencies=[Depends(verify_twilio_signature)])
+@router.post("/webhook")
 @limiter.limit("30/minute")
 async def whatsapp_webhook(
     request: Request,
-    Body: str = Form(default=""),
-    From: str = Form(default=""),
-    NumMedia: str = Form(default="0"),
-    MediaUrl0: str = Form(default=""),
-    MediaContentType0: str = Form(default=""),
+    params: dict = Depends(verify_twilio_signature),
 ):
+    From = params.get("From", "")
+    Body = params.get("Body", "")
+    NumMedia = params.get("NumMedia", "0")
+    MediaUrl0 = params.get("MediaUrl0", "")
+    MediaContentType0 = params.get("MediaContentType0", "")
 
     logger.info(f"Message from: {From} | Body: '{Body}' | Media: {NumMedia}")
 
