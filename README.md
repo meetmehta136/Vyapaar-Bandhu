@@ -1,86 +1,103 @@
 # VyapaarBandhu
-> AI-Powered GST Compliance Assistant for Indian Small Businesses
-> **103 tests** · RAG pipeline (ChromaDB + Claude) · Async OCR (Redis cache) · CI/CD · Alembic · Loguru
+> **AI-Powered GST Compliance Assistant for Indian Small Businesses**
 
-**Live deployments:**
-- Landing: https://vyapaar-bandhu-web.vercel.app
-- Dashboard: https://vyapaarbandhu-ca-elite.vercel.app
-- API: https://vyapaar-bandhu-h53q.onrender.com/docs
+Built for **OceanLab × CHARUSAT Hacks 2026** — a full-stack AI system that brings legal intelligence, async OCR, and WhatsApp-native compliance to CA firms and their SMB clients.
 
-## Architecture
+**103 pytest cases · RAG pipeline (ChromaDB + Claude Sonnet) · Async OCR with Redis · CI/CD (GitHub Actions) · Alembic migrations · Structured logging (Loguru)**
+
+| Layer | Live URL |
+|---|---|
+| Landing Page | https://vyapaar-bandhu-web.vercel.app |
+| CA Dashboard | https://vyapaarbandhu-ca-elite.vercel.app |
+| REST API (Swagger) | https://vyapaar-bandhu-h53q.onrender.com/docs |
+
+---
+
+## Why VyapaarBandhu?
+
+Indian SMBs lose thousands of rupees annually to GST penalties — not because they intend to default, but because the CGST Act is 174 sections of dense legalese. VyapaarBandhu puts a compliance engine directly on WhatsApp: CAs get a React dashboard for centralized client management; their clients get OCR-powered invoice processing and cited legal answers — all without leaving the app they already use.
+
+---
+
+## System Architecture
 
 ```
 WhatsApp → Twilio Webhook → FastAPI Backend → PostgreSQL
                          ↓
-              OpenRouter VLM (invoice OCR)
-              HuggingFace XLM-RoBERTa (GST classifier)
-              Compliance Engine (Pure Python)
+              ┌─ Intelligence Layer ────────────────────────┐
+              │  OpenRouter VLM (Gemini Flash — invoice OCR)│
+              │  HuggingFace XLM-RoBERTa (GST classifier)  │
+              │  Compliance Engine (Pure Python rules)      │
+              └────────────────────────────────────────────┘
                          ↓
-              ┌─ GSTMind RAG Pipeline ─────────────────┐
-              │  Query → Embed(e5-small)               │
-              │         → ChromaDB (994 sections)      │
-              │         → Claude Sonnet (answer+cites)  │
-              └─────────────────────────────────────────┘
+              ┌─ GSTMind RAG Pipeline ──────────────────────┐
+              │  Query → Embed (multilingual-e5-small)      │
+              │        → ChromaDB (994 indexed sections)    │
+              │        → Claude Sonnet (answer + citations) │
+              └────────────────────────────────────────────┘
                          ↓
-              ┌─ Security & Infrastructure ─────────────┐
-              │  Rate limiting (slowapi)                 │
-              │  Security headers · Input sanitization   │
-              │  File validation · CORS (env config)     │
-              │  Redis (opt) OCR cache                   │
-              │  Alembic migrations                      │
-              │  GitHub Actions CI (lint + test)         │
-              │  Structured logging (loguru)             │
-              └──────────────────────────────────────────┘
+              ┌─ Infrastructure ───────────────────────────┐
+              │  Rate limiting (slowapi) per endpoint       │
+              │  Security headers · Input sanitization      │
+              │  File validation · CORS (env-configurable)  │
+              │  Redis OCR cache (SHA-256, 1hr TTL)         │
+              │  Alembic schema migrations                  │
+              │  GitHub Actions CI (lint + 103 tests)       │
+              │  Structured logging via loguru              │
+              └────────────────────────────────────────────┘
                          ↓
-              CA Dashboard (React + Vite + Tailwind)
+              CA Dashboard (React + Vite + Tailwind CSS)
 ```
 
-## Project Structure
+---
+
+## Repository Structure
 
 ```
 vyapaar-bandhu/
-├── backend/                  # FastAPI Python app
+├── backend/                        # FastAPI application
 │   ├── app/
-│   │   ├── main.py          # FastAPI entry point
-│   │   ├── routes/          # API routes (auth, gstmind, whatsapp, ocr, ...)
-│   │   ├── models/          # SQLAlchemy models (8 tables)
-│   │   ├── services/        # OCR, classifier, GSTMind, invoice, PDF parser
-│   │   └── core/            # Database, auth utils, security, logging config
-│   ├── tests/               # 103 pytest tests (conftest.py + 7 test files)
-│   ├── alembic/             # Migration scripts (001_initial.py)
-│   ├── alembic.ini          # Alembic configuration
-│   ├── requirements.txt     # Production deps (chromadb, redis, slowapi, loguru)
-│   ├── requirements-dev.txt # Dev deps (pytest, ruff)
-│   ├── pyproject.toml       # Ruff config
+│   │   ├── main.py                 # Entry point
+│   │   ├── routes/                 # auth, gstmind, whatsapp, ocr, upload, compliance
+│   │   ├── models/                 # SQLAlchemy (8 tables)
+│   │   ├── services/               # OCR, classifier, GSTMind, invoice, PDF parser
+│   │   └── core/                   # DB config, auth, security, logging
+│   ├── tests/                      # 103 pytest cases (7 modules + conftest)
+│   ├── alembic/                    # Migration scripts
+│   ├── requirements.txt            # Production: chromadb, redis, slowapi, loguru
+│   ├── requirements-dev.txt        # Dev: pytest, ruff
+│   ├── pyproject.toml              # Ruff lint config
 │   └── Dockerfile
-├── vyapaarbandhu-ca-elite/  # React frontend (CA Dashboard)
+├── vyapaarbandhu-ca-elite/         # React CA Dashboard
 │   ├── src/
 │   ├── package.json
 │   └── Dockerfile
-├── ml/                      # Data pipeline & ML assets
-│   ├── data/                # Chunks, citation graph, parsed sections
-│   ├── data_pipeline/       # Scraper, PDF parser, chunker, QA generator
-│   ├── notebooks/           # Colab for embedding fine-tuning
-│   ├── evaluation/          # 30-question benchmark + runner
-│   ├── models/              # Model card (HuggingFace-style)
-│   └── scripts/             # Build ChromaDB index CLI
-├── .github/workflows/       # CI pipeline (lint + test)
+├── ml/                             # ML assets and data pipeline
+│   ├── data/                       # Chunks, citation graph, parsed sections
+│   ├── data_pipeline/              # Scraper, PDF parser, chunker, QA generator
+│   ├── notebooks/                  # Colab: embedding fine-tuning
+│   ├── evaluation/                 # 30-question benchmark + runner
+│   ├── models/                     # HuggingFace-style model card
+│   └── scripts/                    # build_chroma_index.py CLI
+├── .github/workflows/              # CI: lint (ruff) + test (pytest)
 ├── docker-compose.yml
-├── SECURITY.md              # Security policy & known gaps
-├── docs/PROGRESS.md         # Session state tracking
+├── SECURITY.md
+├── docs/PROGRESS.md
 └── .env
 ```
+
+---
 
 ## Quick Start (Docker)
 
 ### Prerequisites
-- Docker Desktop installed and running
+- Docker Desktop running
 - Docker Compose v2+
 
-### 1. Setup Environment
+### 1. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env with your API keys (see Required API Keys below)
+# Fill in API keys (see Required API Keys section below)
 ```
 
 ### 2. Start All Services
@@ -88,17 +105,14 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-This starts:
-- **PostgreSQL** on port `5433`
-- **FastAPI Backend** on port `8000`
-- **React Frontend** on port `3000`
+Starts: **PostgreSQL** (port 5433) · **FastAPI** (port 8000) · **React** (port 3000)
 
-### 3. Run Database Migrations
+### 3. Apply Database Migrations
 ```bash
 docker exec -it vyapaarbandhu-backend-1 alembic upgrade head
 ```
 
-### 4. Build the GSTMind Index
+### 4. Build the GSTMind Vector Index
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -109,32 +123,33 @@ python ../ml/scripts/build_chroma_index.py \
 ```
 
 ### 5. Access
-- **CA Dashboard**: http://localhost:3000
-- **API Docs (Swagger)**: http://localhost:8000/docs
-- **GSTMind Status**: http://localhost:8000/api/gstmind/status
-- **Health Check**: http://localhost:8000/health
+| Service | URL |
+|---|---|
+| CA Dashboard | http://localhost:3000 |
+| API Swagger Docs | http://localhost:8000/docs |
+| GSTMind Status | http://localhost:8000/api/gstmind/status |
+| Health Check | http://localhost:8000/health |
+
+---
 
 ## Manual Setup (Without Docker)
 
 ### Backend
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Environment
+# Required environment variables
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/vyapaar_bandhu"
 export OPENROUTER_API_KEY="your_key"
 export HF_API_KEY="your_key"
-export ANTHROPIC_API_KEY="your_key"  # For GSTMind Claude responder
+export ANTHROPIC_API_KEY="your_key"
 export JWT_SECRET="your-secret-key-min-32-chars"
 export GSTMIND_DB_PATH="data/chromadb"
 
-# Run migrations
+# Migrate then build index then serve
 alembic upgrade head
-
-# Build index first, then run
 python ../ml/scripts/build_chroma_index.py
 uvicorn app.main:app --reload --port 8000
 ```
@@ -142,64 +157,67 @@ uvicorn app.main:app --reload --port 8000
 ### Frontend
 ```bash
 cd vyapaarbandhu-ca-elite
-npm install
-npm run dev
+npm install && npm run dev
 ```
+
+---
 
 ## Required API Keys
 
-| Service | Purpose | Get Key From |
-|---------|---------|--------------|
-| OpenRouter | Invoice OCR (VLM) | https://openrouter.ai/keys |
-| HuggingFace | GST Classification | https://huggingface.co/settings/tokens |
-| Anthropic | GSTMind RAG (Claude) | https://console.anthropic.com/ |
-| Twilio | WhatsApp Bot | https://console.twilio.com/ |
-| Redis (optional) | OCR result caching | `REDIS_URL` env var; falls back to in-memory |
+| Service | Purpose | Where to Get |
+|---|---|---|
+| OpenRouter | Invoice OCR (Gemini Flash VLM) | https://openrouter.ai/keys |
+| HuggingFace | GST category classification | https://huggingface.co/settings/tokens |
+| Anthropic | GSTMind RAG (Claude Sonnet) | https://console.anthropic.com |
+| Twilio | WhatsApp bot webhook | https://console.twilio.com |
+| Redis *(optional)* | OCR result caching | Set `REDIS_URL`; falls back to in-memory |
 
 ### Optional Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_URL` | `""` | Redis connection URL for OCR cache (optional; in-memory fallback) |
-| `OCR_CACHE_TTL` | `3600` | OCR cache TTL in seconds |
+|---|---|---|
+| `REDIS_URL` | `""` | Redis connection string (in-memory fallback if unset) |
+| `OCR_CACHE_TTL` | `3600` | Cache TTL in seconds |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
-| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `GSTMIND_DB_PATH` | `data/chromadb` | ChromaDB persistent path |
-| `GSTMIND_EMBEDDING_MODEL` | `intfloat/multilingual-e5-small` | Embedding model name |
+| `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `GSTMIND_DB_PATH` | `data/chromadb` | ChromaDB persistence path |
+| `GSTMIND_EMBEDDING_MODEL` | `intfloat/multilingual-e5-small` | Embedding model |
 
-## GSTMind — RAG Query Engine
+---
 
-GSTMind is a retrieval-augmented generation pipeline for the CGST Act, 2017 and CBIC circulars. It answers GST compliance questions with section-level citations.
+## GSTMind — Legal RAG Engine
+
+GSTMind is the core intelligence of VyapaarBandhu. It answers GST compliance questions with **section-level citations** from the CGST Act, 2017 and CBIC circulars.
 
 ### Pipeline
 
 ```
 User Question
      ↓
-  Embed (multilingual-e5-small, cosine similarity)
+  Embed  →  multilingual-e5-small (cosine similarity)
      ↓
-  ChromaDB — top-15 dense search → section dedup → top-5
+  ChromaDB  →  top-15 dense recall → section dedup → top-5
      ↓
-  Claude Sonnet (with context + citation format)
+  Claude Sonnet  →  answer with inline citations
      ↓
-  Answer + Citations
+  Structured JSON response
 ```
 
-### API Endpoints
+### API
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/gstmind/ask` | Query GSTMind (body: `{"query": "...", "top_k": 5}`) |
-| `GET` | `/api/gstmind/status` | Index health check |
+|---|---|---|
+| `POST` | `/api/gstmind/ask` | Query engine (`{"query": "...", "top_k": 5}`) |
+| `GET` | `/api/gstmind/status` | Index health + responder status |
 
 ### Example
+
 ```bash
 curl -X POST http://localhost:8000/api/gstmind/ask \
   -H "Content-Type: application/json" \
   -d '{"query": "When is ITC blocked?"}'
 ```
 
-Response:
 ```json
 {
   "answer": "As per Section 17(5) of the CGST Act, 2017, input tax credit is blocked for...",
@@ -216,271 +234,292 @@ Response:
 }
 ```
 
+---
+
 ## Async OCR with Redis Caching
 
-OCR tasks (invoice processing via OpenRouter VLM) support both sync and async modes with optional Redis caching.
+Invoice processing via OpenRouter VLM supports both sync and async modes with optional Redis caching that brings repeated invoice lookups from ~10s down to ~50ms.
 
-### Async Workflow
+### Async Flow
 
 ```
 POST /ocr/async  ──→  { task_id: "abc123", status: "pending" }
-                           ↓ (background)
-                      processing...
-                           ↓
-GET /ocr/async/abc123/status  ──→  { status: "done" }
-                           ↓
-GET /ocr/async/abc123/result  ──→  { fields: {...}, confidence: 0.92 }
+                            ↓  (background worker)
+                       OpenRouter VLM processing...
+                            ↓
+GET /ocr/async/{task_id}/status  ──→  { status: "done" }
+GET /ocr/async/{task_id}/result  ──→  { fields: {...}, confidence: 0.92 }
 ```
 
-### Design
-- **In-memory task store** — tasks are ephemeral (lost on restart), acceptable for Render free tier
-- **Redis cache** — SHA-256 keyed, 1-hour TTL, graceful in-memory fallback
-- **Sync endpoints** (`POST /ocr/`) also use cache — repeated images return in ~50ms instead of ~10s
+**Design decisions:**
+- In-memory task store (ephemeral — acceptable on Render free tier)
+- Redis cache keyed on SHA-256 file hash, 1-hour TTL, graceful in-memory fallback
+- Sync endpoints (`POST /ocr/`) also benefit from cache — cache hit returns in ~50ms
+
+---
 
 ## Security
 
-Security is enforced at multiple layers:
+### Rate Limits (slowapi)
 
-### Rate Limiting (slowapi)
 | Endpoint | Limit |
-|----------|-------|
+|---|---|
 | Global (all endpoints) | 60/min per IP |
 | `POST /auth/login` | 10/min |
 | `POST /auth/signup` | 5/min |
 | `POST /ocr/*` | 20/min |
-| `POST /upload/*` | 10-20/min |
+| `POST /upload/*` | 10–20/min |
 | `POST /whatsapp/webhook` | 30/min |
 | `POST /api/clients/{id}/remind` | 5/min |
 
 ### Input Validation
-- **Text sanitization**: HTML escaping, script tag removal, length truncation (10K chars)
-- **File validation**: MIME type restricted to `image/jpeg`, `image/png`, `image/webp`, `application/pdf`, max 10MB
+- HTML escaping, script-tag removal, 10K character truncation on all text inputs
+- File MIME types restricted to `image/jpeg`, `image/png`, `image/webp`, `application/pdf`; max 10MB
 
-### Headers
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `X-XSS-Protection: 1; mode=block`
-- `Strict-Transport-Security: max-age=31536000`
-- `Cache-Control: no-store`
+### HTTP Security Headers
+```
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000
+Cache-Control: no-store
+```
 
-### CORS
-- Configurable via `CORS_ORIGINS` env var (comma-separated or `*`)
+### Known Gaps *(see SECURITY.md)*
+- OCR status/result polling endpoints are intentionally unauthenticated (polling UX trade-off)
+- 30-day JWT lifetime
+- API keys present in git history — **rotate all credentials before production** (commits `6146fa3`, `6020f4b`)
 
-**Known gaps** (see `SECURITY.md`): status polling endpoints unauthenticated (intentional), 30-day JWT tokens, keys in git history.
+---
 
-## CI/CD — GitHub Actions
+## CI/CD Pipeline
 
-| Trigger | Workflow |
-|---------|----------|
-| Push/PR to `main` | CI runs `ruff check .` (lint) + `pytest tests/` (103 tests) |
+| Trigger | Jobs |
+|---|---|
+| Push / PR to `main` | `ruff check .` (lint) + `pytest tests/` (103 tests) |
 
-- **OS**: `ubuntu-latest`
-- **Python**: 3.11
-- **Database**: SQLite (test DB)
-- **Caching**: HuggingFace model cache (sentence-transformers ~120MB)
-- **Concurrency**: Cancel-in-progress for redundant runs
-- **Lint**: `continue-on-error: true` (non-blocking)
+- **Runtime:** ubuntu-latest, Python 3.11, SQLite test database
+- **HuggingFace model cache** warmed (~120MB sentence-transformers)
+- **Concurrency:** cancel-in-progress for redundant runs
+- **Lint** runs with `continue-on-error: true` (non-blocking)
+
+---
 
 ## Structured Logging
 
-All application logs use **loguru** instead of print():
+All logs route through **loguru** (no bare `print()` calls). 62 print statements replaced across 9 files.
 
 ```
-2026-05-25 14:30:00 | INFO    | ocr_service:parse_invoice_with_openrouter:47 - Sending to OpenRouter VLM...
-2026-05-25 14:30:02 | INFO    | ocr_service:parse_invoice_with_openrouter:119 - OpenRouter status: 200
-2026-05-25 14:30:02 | ERROR   | ocr_service:parse_invoice_with_openrouter:122 - OpenRouter error: 401 ...
+2026-05-25 14:30:00 | INFO  | ocr_service:parse_invoice_with_openrouter:47  - Sending to OpenRouter VLM...
+2026-05-25 14:30:02 | INFO  | ocr_service:parse_invoice_with_openrouter:119 - OpenRouter status: 200
+2026-05-25 14:30:02 | ERROR | ocr_service:parse_invoice_with_openrouter:122 - OpenRouter error: 401
 ```
 
-- Level configurable via `LOG_LEVEL` env var (default: `INFO`)
-- Stdlib logging (fastapi, uvicorn, alembic) intercepted and redirected through loguru
-- Backtrace on errors, `diagnose=False` for production safety
-- 62 print() calls replaced across 9 files
+- Log level configurable via `LOG_LEVEL` env var
+- FastAPI, uvicorn, and alembic logs intercepted and unified through loguru
+- Backtrace enabled; `diagnose=False` for production safety
 
-## API Endpoints
+---
+
+## API Reference
 
 ### Auth
 | Method | Path | Rate Limit | Description |
-|--------|------|------------|-------------|
+|---|---|---|---|
 | POST | `/auth/signup` | 5/min | Register CA account |
-| POST | `/auth/login` | 10/min | Login |
-| GET | `/auth/me` | — | Get current CA profile |
+| POST | `/auth/login` | 10/min | Login, returns JWT |
+| GET | `/auth/me` | — | Current CA profile |
 | PUT | `/auth/profile` | — | Update CA profile |
 
-### GSTMind (RAG)
+### GSTMind
 | Method | Path | Description |
-|--------|------|-------------|
+|---|---|---|
 | POST | `/api/gstmind/ask` | GST compliance Q&A with citations |
 | GET | `/api/gstmind/status` | Index health and responder status |
 
 ### OCR
 | Method | Path | Rate Limit | Cached | Description |
-|--------|------|------------|--------|-------------|
-| POST | `/ocr/` | 20/min | Yes | OCR invoice (base64) |
-| POST | `/ocr/upload` | 20/min | Yes | Upload + OCR + classify |
-| POST | `/ocr/async` | 30/min | No | Submit async OCR job |
-| POST | `/ocr/async/upload` | 20/min | No | Upload + submit async OCR |
-| GET | `/ocr/async/{task_id}/status` | — | — | Check async task status |
-| GET | `/ocr/async/{task_id}/result` | — | — | Get async task result |
+|---|---|---|---|---|
+| POST | `/ocr/` | 20/min | ✓ | OCR invoice (base64 payload) |
+| POST | `/ocr/upload` | 20/min | ✓ | Upload file → OCR → classify |
+| POST | `/ocr/async` | 30/min | — | Submit async OCR job |
+| POST | `/ocr/async/upload` | 20/min | — | Upload file → async OCR |
+| GET | `/ocr/async/{task_id}/status` | — | — | Poll job status |
+| GET | `/ocr/async/{task_id}/result` | — | — | Retrieve result |
 
 ### Upload
 | Method | Path | Rate Limit | Description |
-|--------|------|------------|-------------|
-| POST | `/upload/` | 10/min | Upload invoice + OCR + compliance check + save |
-| POST | `/upload/compliance-check` | 20/min | Quick compliance check without saving |
-
-### WhatsApp
-| Method | Path | Rate Limit | Description |
-|--------|------|------------|-------------|
-| POST | `/whatsapp/webhook` | 30/min | Twilio webhook endpoint |
+|---|---|---|---|
+| POST | `/upload/` | 10/min | Upload → OCR → compliance check → persist |
+| POST | `/upload/compliance-check` | 20/min | Quick check without saving |
 
 ### Compliance
 | Method | Path | Description |
-|--------|------|-------------|
-| GET | `/compliance/itc/{category}` | Check ITC eligibility |
-| GET | `/compliance/deadlines/{period}` | Get filing deadlines |
-| GET | `/compliance/penalty/{type}/{days}/{tax}` | Calculate late filing penalty |
-| POST | `/compliance/liability` | Calculate GST liability |
+|---|---|---|
+| GET | `/compliance/itc/{category}` | ITC eligibility check |
+| GET | `/compliance/deadlines/{period}` | Filing deadline lookup |
+| GET | `/compliance/penalty/{type}/{days}/{tax}` | Late-filing penalty calculator |
+| POST | `/compliance/liability` | GST liability computation |
 
 ### GSTIN
 | Method | Path | Description |
-|--------|------|-------------|
-| GET | `/gstin/validate/{gstin}` | Validate GSTIN format + Modulo36 checksum |
+|---|---|---|
+| GET | `/gstin/validate/{gstin}` | Format + Modulo-36 checksum validation |
 
-### Dashboard
+### Dashboard & Clients
 | Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/dashboard/stats` | Dashboard statistics |
+|---|---|---|
+| GET | `/api/dashboard/stats` | Aggregate dashboard metrics |
 | GET | `/api/clients` | List all clients |
-| POST | `/api/clients` | Add a client |
-| GET | `/api/clients/{id}` | Get client detail with invoices |
+| POST | `/api/clients` | Add client |
+| GET | `/api/clients/{id}` | Client detail with invoices |
 | POST | `/api/clients/{id}/remind` | Send WhatsApp filing reminder (5/min) |
 | GET | `/api/invoices` | List all invoices |
 | POST | `/api/invoices/{id}/approve` | Approve invoice |
 | POST | `/api/invoices/{id}/reject` | Reject invoice |
-| GET | `/api/alerts` | Get filing alerts |
-| GET | `/api/admin/stats` | Admin system stats |
+| GET | `/api/alerts` | Active filing alerts |
+| GET | `/api/admin/stats` | System-wide admin stats |
 
 ### System
 | Method | Path | Description |
-|--------|------|-------------|
+|---|---|---|
 | GET | `/health` | Health check with scheduler status |
-| GET | `/api/alerts/trigger-test` | Trigger alert job manually |
+| GET | `/api/alerts/trigger-test` | Manually trigger alert job |
+
+---
 
 ## Database Schema
 
-Managed via **Alembic migrations** (runs `Base.metadata.create_all()` as fallback on startup).
+8 tables managed via Alembic. `Base.metadata.create_all()` runs as a startup fallback.
 
 ```bash
-cd backend
-alembic upgrade head        # Apply all pending migrations
-alembic downgrade -1        # Rollback one step
-alembic revision --autogenerate -m "description"  # Create new migration
+alembic upgrade head                           # Apply migrations
+alembic downgrade -1                           # Roll back one step
+alembic revision --autogenerate -m "desc"      # Generate new migration
 ```
 
-8 tables defined in `app/models/base.py`:
+| Table | Purpose |
+|---|---|
+| `ca_partners` | CA accounts and JWT auth |
+| `users` | WhatsApp clients |
+| `invoices` | Extracted invoice fields |
+| `gst_ledger` | Monthly ITC tracking |
+| `filing_history` | GST return submissions |
+| `alerts` | Deadline alert records |
+| `transactions` | Bank statement entries |
+| `gstr2b_cache` | GSTR-2B supplier cache |
 
-- `ca_partners` — CA accounts (auth, JWT)
-- `users` — WhatsApp users (clients)
-- `invoices` — Extracted invoice data
-- `gst_ledger` — Monthly ITC tracking
-- `filing_history` — GST return filings
-- `alerts` — Deadline alerts
-- `transactions` — Bank statement transactions
-- `gstr2b_cache` — GSTR-2B supplier cache
+---
 
-## Tests
+## Test Suite
 
 ```bash
-cd backend
-python -m pytest tests/ -q
+cd backend && python -m pytest tests/ -q
 # 103 passed
 ```
 
-| Test file | Tests | Coverage |
+| Module | Tests | What's Covered |
 |---|---|---|
-| `conftest.py` | fixture | SQLite DB, mock env vars, sys.path setup |
-| `test_compliance_engine.py` | 59 | Section 17(5), penalty, liability, deadlines, GSTIN |
-| `test_auth_routes.py` | 8 | Signup, login, token refresh, auth guards |
-| `test_gstmind_route.py` | 11 | Route-level (mock index + responder) |
+| `test_compliance_engine.py` | 59 | Section 17(5), penalties, liability, deadlines, GSTIN |
+| `test_gstmind_route.py` | 11 | Route-level with mocked index and responder |
 | `test_gstmind_index.py` | 10 | ChromaDB build, query, persist, cleanup |
-| `test_gstmind_responder.py` | 9 | Claude API, insufficient context, error handling |
+| `test_gstmind_responder.py` | 9 | Claude API, insufficient-context paths, error handling |
+| `test_auth_routes.py` | 8 | Signup, login, token validation, auth guards |
 | `test_dashboard_routes.py` | 3 | Dashboard auth guards |
-| `test_ocr_routes.py` | 3 | OCR upload validation |
+| `test_ocr_routes.py` | 3 | File upload validation |
 
-All tests run in CI on every push/PR to `main` (GitHub Actions, ubuntu-latest, SQLite).
+All tests run in CI on every push/PR (SQLite in-memory, no external service dependencies).
+
+---
 
 ## ML Stack
 
 | Component | Model | Purpose |
 |---|---|---|
-| OCR | google/gemini-2.0-flash-001 | Invoice field extraction |
-| Classification | facebook/bart-large-mnli | Zero-shot GST category detection |
-| Fine-tuned | meet136/indicbert-gst-classifier | XLM-RoBERTa GST classifier v1 |
-| Legal Retrieval | meet136/gst-legal-embeddings-v1 | 4970 pairs, MNRL, 8 epochs, 994 chunks |
-| RAG Generator | claude-sonnet-4-20250514 | Answer with citations |
-| Vector Store | ChromaDB | 994 indexed chunks |
+| OCR | `google/gemini-2.0-flash-001` | Invoice field extraction |
+| Zero-shot Classifier | `facebook/bart-large-mnli` | GST category detection |
+| Fine-tuned Classifier | `meet136/indicbert-gst-classifier` | XLM-RoBERTa GST classifier |
+| Legal Embeddings | `meet136/gst-legal-embeddings-v1` | 4,970 pairs · MNRL · 8 epochs |
+| RAG Generator | `claude-sonnet-4-20250514` | Cited legal answers |
+| Vector Store | ChromaDB | 994 indexed CGST chunks |
 | Chunker | LegalChunker | Section → Sub-section → Clause → Proviso |
 
-## Training Data
+### Training Data — GST Classifier
 
-7,229 synthetic multilingual invoice descriptions (5,353 train / 1,876 test) generated via:
-- **46%** Claude Sonnet — diverse category coverage with Indian business vocabulary
-- **23%** DeepSeek — complementary descriptions with Hindi-English code-mixing
-- **31%** Template — rule-based fallback with multilingual token insertion (Hindi, Gujarati, English)
+7,229 synthetic multilingual invoice descriptions (5,353 train / 1,876 test):
 
-Labels: Clothing, Electronics, Food, Pharma, Travel, Vehicle, Office. Synthetic data is toy-separable; real-world F1 will be lower.
+| Source | Share | Notes |
+|---|---|---|
+| Claude Sonnet | 46% | Diverse category coverage, Indian business vocabulary |
+| DeepSeek | 23% | Hindi-English code-mixed descriptions |
+| Template (rule-based) | 31% | Multilingual token insertion (Hindi, Gujarati, English) |
+
+Labels: Clothing · Electronics · Food · Pharma · Travel · Vehicle · Office
+
+> **Caveat:** F1=1.00 is a data artifact from toy-separable synthetic data. Real-world performance will be lower.
+
+---
 
 ## Data Pipeline
 
 ```
-CGST Act PDF (1.4MB)       CBIC Circulars (seed data)
-         ↓                          ↓
-  parse_cgst_act.py         seed_circulars.py
-         ↓                          ↓
-  98 parsed sections        21 circular metadata files
-         ↓                          ↓
-  build_citation_graph.py ── section→circular mappings
+CGST Act PDF (1.4 MB)              CBIC Circulars (seed data)
+         ↓                                    ↓
+  parse_cgst_act.py              seed_circulars.py
+         ↓                                    ↓
+   98 parsed sections            21 circular metadata files
+         ↓                                    ↓
+  build_citation_graph.py  ←── section → circular mappings
          ↓
   legal_chunker.py
          ↓
-  994 chunks (all_chunks.jsonl)
+  994 chunks  →  all_chunks.jsonl
          ↓
   build_chroma_index.py
          ↓
-  ChromaDB (data/chromadb/)
+  ChromaDB  (data/chromadb/)
 ```
 
-## GSTMind Benchmark Results
+---
 
-Evaluation against 30 hand-crafted GST QA pairs (994 chunks):
+## GSTMind Benchmark
 
-| Model | Section Recall@1 | Avg Keyword Recall | Avg Score |
-|-------|-----------------|-------------------|-----------|
-| e5-small (zero-shot) | 37% (11/30) | 0.475 | 0.918 |
-| meet136/gst-legal-embeddings-v1 | 20% (6/30) | 0.242 | 0.721 |
+Evaluated against 30 hand-crafted GST QA pairs across 994 indexed chunks:
 
-**Retrieved correctly by v2:** Time of supply (s12), penalty no invoice (s122), penalty late filing (s47), penalty waiver (s126), transition (s140), matching (s42)
+| Embedding Model | Section Recall@1 | Avg Keyword Recall | Avg Score |
+|---|---|---|---|
+| `e5-small` (zero-shot) | 37% (11/30) | 0.475 | 0.918 |
+| `meet136/gst-legal-embeddings-v1` | 20% (6/30) | 0.242 | 0.721 |
 
-**Missed due to data gaps:** 18 questions reference sections never parsed from the government PDF (s2, s9, s18, s22, s49, s62, s107, etc.) — these are not retrieval failures.
+**Correctly retrieved by fine-tuned v1:** time of supply (s12), penalty no-invoice (s122), penalty late filing (s47), penalty waiver (s126), transition (s140), matching (s42).
 
-Run the benchmark yourself:
+**Missed (18 questions):** target sections were never parsed from the government PDF — these are **data gaps**, not retrieval failures. The government PDF uses a multi-column layout that caused 77 of 174 sections to be skipped during parsing.
+
 ```bash
+# Run the benchmark yourself
 python ml/evaluation/benchmark.py --db data/chromadb --verbose
 ```
 
+---
+
 ## Known Limitations
 
-- **Classifier F1=1.00** is a data artifact — synthetic training data, not real-world performance
-- **CBIC scraper** may fail on some circulars (government site inconsistency)
-- **PDF parsing** extracted only 97/174 sections (multi-column government PDF layout)
-- **Contamination** in sections 1 and 3 (merged text across section boundaries)
-- **21 circulars** indexed (seed data; cbic-gst.gov.in connection resets from current network)
-- **Eval set** is 200 pairs from same synthetic distribution as training. Real-world MRR will differ.
-- **Render free tier** has 30-60s cold start and 512MB RAM — embedding model loaded lazily; switch to `all-MiniLM-L6-v2` (~80MB) if OOM
-- **OCR status polling** endpoints (`/ocr/status/{task_id}`, `/ocr/result/{task_id}`) are unauthenticated (intentional for polling UX)
-- **Live keys in git history** — rotate all credentials before production (commits `6146fa3`, `6020f4b`)
+| Area | Limitation |
+|---|---|
+| Classifier F1 | F1=1.00 is a synthetic data artifact, not real-world performance |
+| PDF Parsing | Extracted 97/174 CGST sections; multi-column government layout drops rest |
+| Section Contamination | Sections 1 and 3 have merged text across boundaries |
+| CBIC Scraper | May fail on some circulars due to government site inconsistency |
+| Circulars Indexed | 21 seed circulars (cbic-gst.gov.in resets connection from current network) |
+| Eval Contamination | 200-pair eval drawn from same synthetic distribution as training — real-world MRR will differ |
+| Render Cold Start | 30–60s cold start; 512MB RAM — embeddings load lazily; swap to `all-MiniLM-L6-v2` (~80MB) if OOM |
+| Auth on Polling | OCR status/result endpoints are intentionally unauthenticated |
+| Git History | Live API keys in commits `6146fa3`, `6020f4b` — rotate all credentials before production |
+
+---
 
 ## Contact
 
-- GitHub: [@meetmehta136](https://github.com/meetmehta136)
-- Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier) (based on XLM-RoBERTa)
+- **GitHub:** [@meetmehta136](https://github.com/meetmehta136)
+- **HuggingFace:** [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier)
+- **Email:** meetmehta136@gmail.com
