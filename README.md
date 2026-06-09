@@ -2,6 +2,10 @@
 > AI-Powered GST Compliance Assistant for Indian Small Businesses
 > **103 tests** · RAG pipeline (ChromaDB + Claude) · Async OCR (Redis cache) · CI/CD · Alembic · Loguru
 
+**Live deployments:**
+- API: https://vyapaar-bandhu-api.onrender.com/docs
+- Dashboard: https://vyapaar-bandhu-ca-elite.vercel.app
+
 ## Architecture
 
 ```
