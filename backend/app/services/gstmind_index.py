@@ -7,9 +7,7 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-# v2 model — MRR@10: 0.75 (+357% over base)
-# Trained on 4970 pairs from 994 chunks
-DEFAULT_MODEL = "meet136/gst-legal-embeddings-v1"
+DEFAULT_MODEL = "intfloat/multilingual-e5-small"
 DEFAULT_CHUNKS_PATH = "ml/data/processed/all_chunks.jsonl"
 DEFAULT_DB_PATH = "data/chromadb"
 

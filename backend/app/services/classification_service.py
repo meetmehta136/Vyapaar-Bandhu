@@ -100,6 +100,17 @@ def _classify_bart(text: str) -> dict | None:
         return None
 
 
+# Map from HF model consumer labels to ITC compliance categories
+LABEL_TO_ITC_CATEGORY = {
+    "Clothing": "Other",
+    "Electronics": "IT & Software",
+    "Food": "Other",
+    "Office": "Office Expenses",
+    "Pharma": "Professional Fees",
+    "Travel": "Travel",
+    "Vehicle": "Capital Goods",
+}
+
 def _classify_your_model(text: str) -> dict | None:
     if not text:
         return None
@@ -118,7 +129,8 @@ def _classify_your_model(text: str) -> dict | None:
             data = resp.json()
             if isinstance(data, list) and len(data) > 0:
                 top = max(data[0], key=lambda x: x["score"])
-                return _result(top["label"], top["score"], "your-model")
+                mapped_category = LABEL_TO_ITC_CATEGORY.get(top["label"], "Other")
+                return _result(mapped_category, top["score"], "your-model")
         else:
             logger.warning(f"Custom model error: {resp.status_code} {resp.text[:100]}")
             return None

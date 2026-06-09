@@ -1,6 +1,6 @@
 # VyapaarBandhu
 > AI-Powered GST Compliance Assistant for Indian Small Businesses
-> **89 tests** · RAG pipeline (ChromaDB + Claude) · Async OCR (Redis cache) · CI/CD · Alembic · Loguru
+> **103 tests** · RAG pipeline (ChromaDB + Claude) · Async OCR (Redis cache) · CI/CD · Alembic · Loguru
 
 ## Architecture
 
@@ -8,7 +8,7 @@
 WhatsApp → Twilio Webhook → FastAPI Backend → PostgreSQL
                          ↓
               OpenRouter VLM (invoice OCR)
-              HuggingFace IndicBERT (GST classifier)
+              HuggingFace XLM-RoBERTa (GST classifier)
               Compliance Engine (Pure Python)
                          ↓
               ┌─ GSTMind RAG Pipeline ─────────────────┐
@@ -41,7 +41,7 @@ vyapaar-bandhu/
 │   │   ├── models/          # SQLAlchemy models (8 tables)
 │   │   ├── services/        # OCR, classifier, GSTMind, invoice, PDF parser
 │   │   └── core/            # Database, auth utils, security, logging config
-│   ├── tests/               # 89 pytest tests (conftest.py + 4 test files)
+│   ├── tests/               # 103 pytest tests (conftest.py + 7 test files)
 │   ├── alembic/             # Migration scripts (001_initial.py)
 │   ├── alembic.ini          # Alembic configuration
 │   ├── requirements.txt     # Production deps (chromadb, redis, slowapi, loguru)
@@ -98,7 +98,7 @@ docker exec -it vyapaarbandhu-backend-1 alembic upgrade head
 cd backend
 pip install -r requirements.txt
 python ../ml/scripts/build_chroma_index.py \
-    --chunks ml/data/processed/all_chunks.jsonl \
+    --chunks ../ml/data/processed/all_chunks.jsonl \
     --db data/chromadb \
     --model intfloat/multilingual-e5-small
 ```
@@ -261,13 +261,13 @@ Security is enforced at multiple layers:
 ### CORS
 - Configurable via `CORS_ORIGINS` env var (comma-separated or `*`)
 
-**Known gaps** (see `SECURITY.md`): no auth on data routes (~90% of endpoints), 30-day JWT tokens, keys in git history.
+**Known gaps** (see `SECURITY.md`): status polling endpoints unauthenticated (intentional), 30-day JWT tokens, keys in git history.
 
 ## CI/CD — GitHub Actions
 
 | Trigger | Workflow |
 |---------|----------|
-| Push/PR to `main` | CI runs `ruff check .` (lint) + `pytest tests/` (89 tests) |
+| Push/PR to `main` | CI runs `ruff check .` (lint) + `pytest tests/` (103 tests) |
 
 - **OS**: `ubuntu-latest`
 - **Python**: 3.11
@@ -388,16 +388,19 @@ alembic revision --autogenerate -m "description"  # Create new migration
 ```bash
 cd backend
 python -m pytest tests/ -q
-# 89 passed
+# 103 passed
 ```
 
 | Test file | Tests | Coverage |
 |---|---|---|
 | `conftest.py` | fixture | SQLite DB, mock env vars, sys.path setup |
 | `test_compliance_engine.py` | 59 | Section 17(5), penalty, liability, deadlines, GSTIN |
-| `test_gstmind_route.py` | 10 | Route-level (mock index + responder) |
+| `test_auth_routes.py` | 8 | Signup, login, token refresh, auth guards |
+| `test_gstmind_route.py` | 11 | Route-level (mock index + responder) |
 | `test_gstmind_index.py` | 10 | ChromaDB build, query, persist, cleanup |
-| `test_gstmind_responder.py` | 10 | Claude API, insufficient context, error handling |
+| `test_gstmind_responder.py` | 9 | Claude API, insufficient context, error handling |
+| `test_dashboard_routes.py` | 3 | Dashboard auth guards |
+| `test_ocr_routes.py` | 3 | OCR upload validation |
 
 All tests run in CI on every push/PR to `main` (GitHub Actions, ubuntu-latest, SQLite).
 
@@ -407,17 +410,20 @@ All tests run in CI on every push/PR to `main` (GitHub Actions, ubuntu-latest, S
 |---|---|---|
 | OCR | google/gemini-2.0-flash-001 | Invoice field extraction |
 | Classification | facebook/bart-large-mnli | Zero-shot GST category detection |
-| Fine-tuned | meet136/indicbert-gst-classifier | Custom GST classifier v1 |
+| Fine-tuned | meet136/indicbert-gst-classifier | XLM-RoBERTa GST classifier v1 |
 | Legal Retrieval | meet136/gst-legal-embeddings-v1 | 4970 pairs, MNRL, 8 epochs, 994 chunks |
 | RAG Generator | claude-sonnet-4-20250514 | Answer with citations |
 | Vector Store | ChromaDB | 994 indexed chunks |
 | Chunker | LegalChunker | Section → Sub-section → Clause → Proviso |
 
-## Performance
+## Training Data
 
-| Benchmark | Score | Notes |
-|-----------|-------|-------|
-| GSTMind retrieval MRR@10 | 0.75 | Fine-tuned on domain corpus |
+7,229 synthetic multilingual invoice descriptions (5,353 train / 1,876 test) generated via:
+- **46%** Claude Sonnet — diverse category coverage with Indian business vocabulary
+- **23%** DeepSeek — complementary descriptions with Hindi-English code-mixing
+- **31%** Template — rule-based fallback with multilingual token insertion (Hindi, Gujarati, English)
+
+Labels: Clothing, Electronics, Food, Pharma, Travel, Vehicle, Office. Synthetic data is toy-separable; real-world F1 will be lower.
 
 ## Data Pipeline
 
@@ -464,12 +470,12 @@ python ml/evaluation/benchmark.py --db data/chromadb --verbose
 - **PDF parsing** extracted only 97/174 sections (multi-column government PDF layout)
 - **Contamination** in sections 1 and 3 (merged text across section boundaries)
 - **21 circulars** indexed (seed data; cbic-gst.gov.in connection resets from current network)
-- **Eval set** is 200 pairs from same synthetic distribution as training. Real-world MRR will differ. Relative improvement signal (+357%) is the meaningful metric.
+- **Eval set** is 200 pairs from same synthetic distribution as training. Real-world MRR will differ.
 - **Render free tier** has 30-60s cold start and 512MB RAM — embedding model loaded lazily; switch to `all-MiniLM-L6-v2` (~80MB) if OOM
-- **No auth on data routes** ~90% of endpoints (dashboard, clients, invoices, OCR) are unauthenticated — see `SECURITY.md`
+- **OCR status polling** endpoints (`/ocr/status/{task_id}`, `/ocr/result/{task_id}`) are unauthenticated (intentional for polling UX)
 - **Live keys in git history** — rotate all credentials before production (commits `6146fa3`, `6020f4b`)
 
 ## Contact
 
 - GitHub: [@meetmehta136](https://github.com/meetmehta136)
-- Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier)
+- Model: [meet136/indicbert-gst-classifier](https://huggingface.co/meet136/indicbert-gst-classifier) (based on XLM-RoBERTa)
