@@ -3,8 +3,8 @@
 > **103 tests** · RAG pipeline (ChromaDB + Claude) · Async OCR (Redis cache) · CI/CD · Alembic · Loguru
 
 **Live deployments:**
-- API: https://vyapaar-bandhu-api.onrender.com/docs
-- Dashboard: https://vyapaar-bandhu-ca-elite.vercel.app
+- API: https://vyapaar-bandhu-h53q.onrender.com/docs
+- Dashboard: https://vyapaarbandhu-ca-elite.vercel.app
 
 ## Architecture
 
