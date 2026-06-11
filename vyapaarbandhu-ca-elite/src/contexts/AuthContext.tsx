@@ -26,7 +26,10 @@ export const useAuth = () => {
   return ctx;
 };
 
-const BASE_URL    = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+if (!BASE_URL) {
+  console.error('VITE_API_BASE_URL is not set. API calls will fail.');
+}
 const TOKEN_KEY   = 'vb_token';
 const PROFILE_KEY = 'vb_profile';
 

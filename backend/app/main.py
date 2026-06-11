@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from loguru import logger
 from app.models.base import Base
 from app.core.database import engine
-from app.core.security import limiter, get_cors_origins, apply_security_middleware
+from app.core.security import limiter, apply_security_middleware
 from app.core.logging_config import configure_logging
 from app.routes.gstin import router as gstin_router
 from app.routes.compliance import router as compliance_router
@@ -153,11 +153,16 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-cors_origins = get_cors_origins()
+CORS_ORIGINS_RAW = os.getenv(
+    "CORS_ORIGINS",
+    "https://vyapaar-bandhu.vercel.app,https://vyapaarbandhu-ca-elite.vercel.app,http://localhost:5173,http://localhost:3000"
+)
+cors_origins = [o.strip() for o in CORS_ORIGINS_RAW.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=cors_origins != ["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

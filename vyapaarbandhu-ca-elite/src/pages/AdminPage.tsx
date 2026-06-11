@@ -31,7 +31,7 @@ const AdminPage = () => {
   const mrrCA       = 999;
   const totalMrr    = mrrConsumer + mrrCA;
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
   const health = [
     { label: 'Backend API',          url: apiBase },
     { label: 'Database',             url: 'PostgreSQL on Render' },
