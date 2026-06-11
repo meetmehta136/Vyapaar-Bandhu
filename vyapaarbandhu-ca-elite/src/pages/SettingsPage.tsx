@@ -130,7 +130,7 @@ const SettingsPage = () => {
               <label className="text-xs text-muted-foreground mb-2 block">Live Preview</label>
               <div className="p-4 rounded-lg bg-background border border-border">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-foreground" style={{ background: brandColor }}>{brandName.slice(0, 2).toUpperCase()}</div>
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-foreground" style={{ background: brandColor }}>{(brandName ?? 'NA').slice(0, 2).toUpperCase()}</div>
                   <div>
                     <div className="text-xs font-semibold text-foreground">{brandName}</div>
                     <div className="text-[9px] text-muted-foreground">{tagline}</div>
@@ -151,7 +151,7 @@ const SettingsPage = () => {
         <div className="card-surface p-6">
           <h2 className="text-sm font-semibold text-foreground mb-4">Subscription</h2>
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-lg font-bold gradient-text-primary">{plan.toUpperCase()}</span>
+            <span className="text-lg font-bold gradient-text-primary">{(plan ?? '').toUpperCase()}</span>
             <span className="text-xs text-muted-foreground">{plan === 'pro' ? '₹999/month' : 'Free'}</span>
           </div>
           <div className="space-y-1.5 mb-4">

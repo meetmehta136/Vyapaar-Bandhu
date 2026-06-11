@@ -160,7 +160,7 @@ const ClientDetailPage = () => {
             <h3 className="text-sm font-semibold text-foreground mb-3">Supplier Health</h3>
             {clientInvoices.map((inv) => (
               <div key={inv.id} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
-                <span className="text-xs text-muted-foreground font-mono">{inv.supplierGstin.slice(0, 15)}</span>
+                <span className="text-xs text-muted-foreground font-mono">{(inv.supplierGstin ?? '').slice(0, 15)}</span>
                 <span className="text-xs text-success-val">✓ Valid</span>
               </div>
             ))}
